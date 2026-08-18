@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import * as SQLite from 'expo-sqlite';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 
@@ -10,6 +11,32 @@ export default function ProfileScreen() {
   const [name, setName] = useState('');
   const [selectedGoal, setSelectedGoal] = useState('');
   const [selectedEquipment, setSelectedEquipment] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setupAndLoad();
+  }, []);
+
+  const setupAndLoad = async () => {
+    const db = await SQLite.openDatabaseAsync('atlas.db');
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS profile (
+        id INTEGER PRIMARY KEY NOT NULL,
+        name TEXT,
+        goal TEXT,
+        equipment TEXT
+      );
+    `);
+    const row = await db.getFirstAsync<{ name: string; goal: string; equipment: string }>(
+      'SELECT * FROM profile WHERE id = 1'
+    );
+    if (row) {
+      setName(row.name || '');
+      setSelectedGoal(row.goal || '');
+      setSelectedEquipment(row.equipment ? row.equipment.split(',') : []);
+    }
+    setLoading(false);
+  };
 
   const toggleEquipment = (item: string) => {
     if (selectedEquipment.includes(item)) {
@@ -19,7 +46,7 @@ export default function ProfileScreen() {
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!name.trim()) {
       Alert.alert('Missing info', 'Please enter your name.');
       return;
@@ -28,11 +55,22 @@ export default function ProfileScreen() {
       Alert.alert('Missing info', 'Please select a goal.');
       return;
     }
-    Alert.alert(
-      'Profile Saved',
-      `Name: ${name}\nGoal: ${selectedGoal}\nEquipment: ${selectedEquipment.join(', ') || 'None selected'}`
+    const db = await SQLite.openDatabaseAsync('atlas.db');
+    await db.runAsync(
+      `INSERT INTO profile (id, name, goal, equipment) VALUES (1, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET name = ?, goal = ?, equipment = ?`,
+      [name, selectedGoal, selectedEquipment.join(','), name, selectedGoal, selectedEquipment.join(',')]
     );
+    Alert.alert('Profile Saved', 'Your profile has been saved to the device.');
   };
+
+  if (loading) {
+    return (
+      <ThemedView style={styles.container}>
+        <ThemedText>Loading...</ThemedText>
+      </ThemedView>
+    );
+  }
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
