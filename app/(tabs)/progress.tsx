@@ -4,11 +4,12 @@ import { useFocusEffect } from 'expo-router';
 import * as SQLite from 'expo-sqlite';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { WorkoutPlan } from '@/services/gemini';
 
 type HistoryRow = {
   id: number;
   date: string;
-  workout_text: string;
+  workout_json: string;
 };
 
 export default function ProgressScreen() {
@@ -20,12 +21,12 @@ export default function ProgressScreen() {
     try {
       const db = await SQLite.openDatabaseAsync('atlas.db');
       await db.execAsync(`
-        CREATE TABLE IF NOT EXISTS workout_history (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          date TEXT,
-          workout_text TEXT
-        );
-      `);
+  CREATE TABLE IF NOT EXISTS workout_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    date TEXT,
+    workout_json TEXT
+  );
+`);
       const rows = await db.getAllAsync<HistoryRow>(
         'SELECT * FROM workout_history ORDER BY id DESC'
       );
@@ -35,7 +36,6 @@ export default function ProgressScreen() {
     }
   };
 
-  // Reload every time this tab comes into focus, so new workouts show up immediately
   useFocusEffect(
     useCallback(() => {
       loadHistory();
@@ -55,14 +55,29 @@ export default function ProgressScreen() {
           data={history}
           keyExtractor={(item) => item.id.toString()}
           contentContainerStyle={{ gap: 12 }}
-          renderItem={({ item }) => (
-            <ThemedView style={styles.card}>
-              <ThemedText type="subtitle">{item.date}</ThemedText>
-              <ThemedText numberOfLines={4} style={styles.preview}>
-                {item.workout_text}
-              </ThemedText>
-            </ThemedView>
-          )}
+          renderItem={({ item }) => {
+            let plan: WorkoutPlan | null = null;
+            try {
+              plan = JSON.parse(item.workout_json);
+            } catch {
+              plan = null;
+            }
+            return (
+              <ThemedView style={styles.card}>
+                <ThemedText type="subtitle">{item.date}</ThemedText>
+                {plan ? (
+                  <>
+                    <ThemedText type="defaultSemiBold" style={{ marginTop: 4 }}>{plan.title}</ThemedText>
+                    <ThemedText style={styles.preview}>
+                      {plan.exercises.map((e) => e.name).join(', ')}
+                    </ThemedText>
+                  </>
+                ) : (
+                  <ThemedText style={styles.preview}>(Unreadable old entry)</ThemedText>
+                )}
+              </ThemedView>
+            );
+          }}
         />
       )}
     </ThemedView>

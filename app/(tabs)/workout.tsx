@@ -3,16 +3,16 @@ import { StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert } fr
 import * as SQLite from 'expo-sqlite';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { generateWorkout } from '@/services/gemini';
+import { generateWorkout, WorkoutPlan } from '@/services/gemini';
 
 export default function WorkoutScreen() {
   const [loading, setLoading] = useState(false);
-  const [workout, setWorkout] = useState('');
+  const [workout, setWorkout] = useState<WorkoutPlan | null>(null);
   const [saved, setSaved] = useState(false);
 
   const handleGenerate = async () => {
     setLoading(true);
-    setWorkout('');
+    setWorkout(null);
     setSaved(false);
     try {
       const db = await SQLite.openDatabaseAsync('atlas.db');
@@ -40,19 +40,21 @@ export default function WorkoutScreen() {
   };
 
   const handleMarkDone = async () => {
+    if (!workout) return;
     try {
       const db = await SQLite.openDatabaseAsync('atlas.db');
       await db.execAsync(`
-        CREATE TABLE IF NOT EXISTS workout_history (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          date TEXT,
-          workout_text TEXT
-        );
-      `);
+  DROP TABLE IF EXISTS workout_history;
+  CREATE TABLE workout_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    date TEXT,
+    workout_json TEXT
+  );
+`);
       const today = new Date().toISOString().split('T')[0];
       await db.runAsync(
-        'INSERT INTO workout_history (date, workout_text) VALUES (?, ?)',
-        [today, workout]
+        'INSERT INTO workout_history (date, workout_json) VALUES (?, ?)',
+        [today, JSON.stringify(workout)]
       );
       setSaved(true);
       Alert.alert('Nice work!', 'Workout saved to your history.');
@@ -75,9 +77,15 @@ export default function WorkoutScreen() {
 
       {workout ? (
         <>
-          <ThemedView style={styles.resultBox}>
-            <ThemedText>{workout}</ThemedText>
-          </ThemedView>
+          <ThemedText type="subtitle" style={{ marginTop: 20 }}>{workout.title}</ThemedText>
+
+          {workout.exercises.map((ex, i) => (
+            <ThemedView key={i} style={styles.exerciseCard}>
+              <ThemedText type="defaultSemiBold">{i + 1}. {ex.name}</ThemedText>
+              <ThemedText style={styles.exerciseDetail}>{ex.sets} sets × {ex.reps} reps</ThemedText>
+              <ThemedText style={styles.exerciseFocus}>Focus: {ex.focus}</ThemedText>
+            </ThemedView>
+          ))}
 
           <TouchableOpacity
             style={[styles.doneButton, saved && styles.doneButtonSaved]}
@@ -110,12 +118,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  resultBox: {
-    marginTop: 20,
-    padding: 16,
+  exerciseCard: {
+    padding: 14,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#444',
+    gap: 4,
+  },
+  exerciseDetail: {
+    opacity: 0.85,
+  },
+  exerciseFocus: {
+    opacity: 0.6,
+    fontSize: 13,
   },
   doneButton: {
     backgroundColor: '#22A559',
