@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import { Linking, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import * as SQLite from 'expo-sqlite';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { generateWorkout, WorkoutPlan } from '@/services/gemini';
+
 
 export default function WorkoutScreen() {
   const [loading, setLoading] = useState(false);
@@ -44,8 +45,7 @@ export default function WorkoutScreen() {
     try {
       const db = await SQLite.openDatabaseAsync('atlas.db');
       await db.execAsync(`
-  DROP TABLE IF EXISTS workout_history;
-  CREATE TABLE workout_history (
+  CREATE TABLE IF NOT EXISTS workout_history (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     date TEXT,
     workout_json TEXT
@@ -80,12 +80,18 @@ export default function WorkoutScreen() {
           <ThemedText type="subtitle" style={{ marginTop: 20 }}>{workout.title}</ThemedText>
 
           {workout.exercises.map((ex, i) => (
-            <ThemedView key={i} style={styles.exerciseCard}>
-              <ThemedText type="defaultSemiBold">{i + 1}. {ex.name}</ThemedText>
-              <ThemedText style={styles.exerciseDetail}>{ex.sets} sets × {ex.reps} reps</ThemedText>
-              <ThemedText style={styles.exerciseFocus}>Focus: {ex.focus}</ThemedText>
-            </ThemedView>
-          ))}
+  <ThemedView key={i} style={styles.exerciseCard}>
+    <ThemedText type="defaultSemiBold">{i + 1}. {ex.name}</ThemedText>
+    <ThemedText style={styles.exerciseDetail}>{ex.sets} sets × {ex.reps} reps</ThemedText>
+    <ThemedText style={styles.exerciseFocus}>Focus: {ex.focus}</ThemedText>
+    <ThemedText style={styles.exerciseDescription}>{ex.description}</ThemedText>
+    <TouchableOpacity
+      style={styles.demoButton}
+      onPress={() => Linking.openURL(`https://www.youtube.com/results?search_query=${encodeURIComponent(ex.name + ' exercise proper form')}`)}>
+      <ThemedText style={styles.demoButtonText}>▶ Watch Demo</ThemedText>
+    </TouchableOpacity>
+  </ThemedView>
+))}
 
           <TouchableOpacity
             style={[styles.doneButton, saved && styles.doneButtonSaved]}
@@ -132,6 +138,25 @@ const styles = StyleSheet.create({
     opacity: 0.6,
     fontSize: 13,
   },
+  exerciseDescription: {
+  marginTop: 4,
+  fontSize: 13,
+  opacity: 0.9,
+},
+demoButton: {
+  marginTop: 8,
+  alignSelf: 'flex-start',
+  borderWidth: 1,
+  borderColor: '#1D8CF8',
+  borderRadius: 6,
+  paddingVertical: 6,
+  paddingHorizontal: 12,
+},
+demoButtonText: {
+  color: '#1D8CF8',
+  fontSize: 13,
+  fontWeight: '600',
+},
   doneButton: {
     backgroundColor: '#22A559',
     borderRadius: 8,

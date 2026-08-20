@@ -5,6 +5,7 @@ export type WorkoutExercise = {
   sets: number;
   reps: string;
   focus: string;
+  description: string;
 };
 
 export type WorkoutPlan = {
@@ -24,7 +25,7 @@ Return ONLY valid JSON, no markdown formatting, no extra text, in exactly this s
 {
   "title": "short workout title",
   "exercises": [
-    { "name": "exercise name", "sets": 3, "reps": "10-12", "focus": "muscle group" }
+    { "name": "exercise name", "sets": 3, "reps": "10-12", "focus": "muscle group", "description": "one short sentence explaining how to perform this exercise with correct form" }
   ]
 }
 Include 4-6 exercises.`;
