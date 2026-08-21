@@ -8,6 +8,11 @@ export type WorkoutExercise = {
   description: string;
 };
 
+export type WorkoutStep = {
+  name: string;
+  seconds: number;
+};
+
 export type WorkoutPlan = {
   title: string;
   warmup: string[];
@@ -30,12 +35,12 @@ Size the number of main exercises to fit within the time available, including wa
 Return ONLY valid JSON, no markdown formatting, no extra text, in exactly this shape:
 {
   "title": "short workout title",
-  "warmup": ["short warm-up movement 1", "short warm-up movement 2"],
+  "warmup": [{ "name": "short warm-up movement", "seconds": 30 }],
   "exercises": [
     { "name": "exercise name", "sets": 3, "reps": "10-12", "focus": "muscle group", "description": "one short sentence explaining how to perform this exercise with correct form" }
   ],
-  "cooldown": ["short cooldown stretch 1", "short cooldown stretch 2"]
-}`;
+  "cooldown": [{ "name": "short cooldown stretch", "seconds": 30 }]
+}
 
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${API_KEY}`,

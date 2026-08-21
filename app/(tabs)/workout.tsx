@@ -4,11 +4,13 @@ import * as SQLite from 'expo-sqlite';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { generateWorkout, WorkoutPlan } from '@/services/gemini';
+import WorkoutSession from '@/components/workout-session';
 
 export default function WorkoutScreen() {
   const [loading, setLoading] = useState(false);
   const [workout, setWorkout] = useState<WorkoutPlan | null>(null);
   const [saved, setSaved] = useState(false);
+  const [sessionActive, setSessionActive] = useState(false);
 
   const handleGenerate = async () => {
     setLoading(true);
@@ -62,6 +64,18 @@ export default function WorkoutScreen() {
       Alert.alert('Error', err.message || 'Could not save workout.');
     }
   };
+  if (sessionActive && workout) {
+  return (
+    <WorkoutSession
+      workout={workout}
+      onExit={() => setSessionActive(false)}
+      onComplete={() => {
+        setSessionActive(false);
+        handleMarkDone();
+      }}
+    />
+  );
+}
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -78,13 +92,16 @@ export default function WorkoutScreen() {
       {workout ? (
         <>
           <ThemedText type="subtitle" style={{ marginTop: 20 }}>{workout.title}</ThemedText>
+          <TouchableOpacity style={styles.startSessionButton} onPress={() => setSessionActive(true)}>
+  <ThemedText style={styles.buttonText}>▶ Start Workout</ThemedText>
+</TouchableOpacity>
 
           {workout.warmup && workout.warmup.length > 0 && (
             <ThemedView style={styles.warmupCard}>
               <ThemedText type="defaultSemiBold">🔥 Warm-up</ThemedText>
               {workout.warmup.map((w, i) => (
-                <ThemedText key={i} style={styles.warmupItem}>• {w}</ThemedText>
-              ))}
+  <ThemedText key={i} style={styles.warmupItem}>• {w.name} ({w.seconds}s)</ThemedText>
+))}
             </ThemedView>
           )}
 
@@ -106,8 +123,8 @@ export default function WorkoutScreen() {
             <ThemedView style={styles.cooldownCard}>
               <ThemedText type="defaultSemiBold">🧘 Cool-down</ThemedText>
               {workout.cooldown.map((c, i) => (
-                <ThemedText key={i} style={styles.warmupItem}>• {c}</ThemedText>
-              ))}
+  <ThemedText key={i} style={styles.warmupItem}>• {c.name} ({c.seconds}s)</ThemedText>
+))}
             </ThemedView>
           )}
 
@@ -193,7 +210,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     opacity: 0.9,
   },
-  doneButton: {
+    doneButton: {
     backgroundColor: '#22A559',
     borderRadius: 8,
     paddingVertical: 14,
@@ -202,5 +219,12 @@ const styles = StyleSheet.create({
   },
   doneButtonSaved: {
     backgroundColor: '#2b6b45',
+  },
+  startSessionButton: {
+    backgroundColor: '#22A559',
+    borderRadius: 8,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 12,
   },
 });
