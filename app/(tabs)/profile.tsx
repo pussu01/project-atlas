@@ -3,14 +3,17 @@ import { StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert } from 'reac
 import * as SQLite from 'expo-sqlite';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { Link } from 'expo-router';
 
 const GOALS = ['Lose Weight', 'Build Muscle', 'Stay Fit', 'Improve Endurance'];
 const EQUIPMENT = ['None / Bodyweight', 'Dumbbells', 'Full Gym'];
+const TIME_OPTIONS = ['15 min', '30 min', '45 min', '60+ min'];
 
 export default function ProfileScreen() {
   const [name, setName] = useState('');
   const [selectedGoal, setSelectedGoal] = useState('');
   const [selectedEquipment, setSelectedEquipment] = useState<string[]>([]);
+  const [selectedTime, setSelectedTime] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -27,13 +30,20 @@ export default function ProfileScreen() {
         equipment TEXT
       );
     `);
-    const row = await db.getFirstAsync<{ name: string; goal: string; equipment: string }>(
+    try {
+      await db.execAsync('ALTER TABLE profile ADD COLUMN time_available TEXT;');
+    } catch {
+      // Column already exists, ignore
+    }
+
+    const row = await db.getFirstAsync<{ name: string; goal: string; equipment: string; time_available: string }>(
       'SELECT * FROM profile WHERE id = 1'
     );
     if (row) {
       setName(row.name || '');
       setSelectedGoal(row.goal || '');
       setSelectedEquipment(row.equipment ? row.equipment.split(',') : []);
+      setSelectedTime(row.time_available || '');
     }
     setLoading(false);
   };
@@ -57,9 +67,9 @@ export default function ProfileScreen() {
     }
     const db = await SQLite.openDatabaseAsync('atlas.db');
     await db.runAsync(
-      `INSERT INTO profile (id, name, goal, equipment) VALUES (1, ?, ?, ?)
-       ON CONFLICT(id) DO UPDATE SET name = ?, goal = ?, equipment = ?`,
-      [name, selectedGoal, selectedEquipment.join(','), name, selectedGoal, selectedEquipment.join(',')]
+      `INSERT INTO profile (id, name, goal, equipment, time_available) VALUES (1, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET name = ?, goal = ?, equipment = ?, time_available = ?`,
+      [name, selectedGoal, selectedEquipment.join(','), selectedTime, name, selectedGoal, selectedEquipment.join(','), selectedTime]
     );
     Alert.alert('Profile Saved', 'Your profile has been saved to the device.');
   };
@@ -113,9 +123,25 @@ export default function ProfileScreen() {
         ))}
       </ThemedView>
 
+      <ThemedText type="subtitle" style={styles.label}>Time Available Today</ThemedText>
+      <ThemedView style={styles.optionsRow}>
+        {TIME_OPTIONS.map((t) => (
+          <TouchableOpacity
+            key={t}
+            style={[styles.option, selectedTime === t && styles.optionSelected]}
+            onPress={() => setSelectedTime(t)}>
+            <ThemedText style={selectedTime === t ? styles.optionTextSelected : styles.optionText}>
+              {t}
+            </ThemedText>
+          </TouchableOpacity>
+        ))}
+      </ThemedView>
+
       <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
         <ThemedText style={styles.saveButtonText}>Save Profile</ThemedText>
       </TouchableOpacity>
+
+      
     </ScrollView>
   );
 }
@@ -140,6 +166,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#fff',
   },
+  testLink: {
+  marginTop: 30,
+  alignSelf: 'center',
+},
   optionsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',

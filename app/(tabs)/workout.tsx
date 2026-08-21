@@ -5,7 +5,6 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { generateWorkout, WorkoutPlan } from '@/services/gemini';
 
-
 export default function WorkoutScreen() {
   const [loading, setLoading] = useState(false);
   const [workout, setWorkout] = useState<WorkoutPlan | null>(null);
@@ -17,8 +16,8 @@ export default function WorkoutScreen() {
     setSaved(false);
     try {
       const db = await SQLite.openDatabaseAsync('atlas.db');
-      const profileRow = await db.getFirstAsync<{ goal: string; equipment: string }>(
-        'SELECT goal, equipment FROM profile WHERE id = 1'
+      const profileRow = await db.getFirstAsync<{ goal: string; equipment: string; time_available: string }>(
+        'SELECT goal, equipment, time_available FROM profile WHERE id = 1'
       );
 
       if (!profileRow || !profileRow.goal) {
@@ -30,6 +29,7 @@ export default function WorkoutScreen() {
       const result = await generateWorkout({
         goal: profileRow.goal,
         equipment: profileRow.equipment ? profileRow.equipment.split(',') : [],
+        timeAvailable: profileRow.time_available || '30 min',
       });
 
       setWorkout(result);
@@ -45,12 +45,12 @@ export default function WorkoutScreen() {
     try {
       const db = await SQLite.openDatabaseAsync('atlas.db');
       await db.execAsync(`
-  CREATE TABLE IF NOT EXISTS workout_history (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    date TEXT,
-    workout_json TEXT
-  );
-`);
+        CREATE TABLE IF NOT EXISTS workout_history (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          date TEXT,
+          workout_json TEXT
+        );
+      `);
       const today = new Date().toISOString().split('T')[0];
       await db.runAsync(
         'INSERT INTO workout_history (date, workout_json) VALUES (?, ?)',
@@ -79,19 +79,37 @@ export default function WorkoutScreen() {
         <>
           <ThemedText type="subtitle" style={{ marginTop: 20 }}>{workout.title}</ThemedText>
 
+          {workout.warmup && workout.warmup.length > 0 && (
+            <ThemedView style={styles.warmupCard}>
+              <ThemedText type="defaultSemiBold">🔥 Warm-up</ThemedText>
+              {workout.warmup.map((w, i) => (
+                <ThemedText key={i} style={styles.warmupItem}>• {w}</ThemedText>
+              ))}
+            </ThemedView>
+          )}
+
           {workout.exercises.map((ex, i) => (
-  <ThemedView key={i} style={styles.exerciseCard}>
-    <ThemedText type="defaultSemiBold">{i + 1}. {ex.name}</ThemedText>
-    <ThemedText style={styles.exerciseDetail}>{ex.sets} sets × {ex.reps} reps</ThemedText>
-    <ThemedText style={styles.exerciseFocus}>Focus: {ex.focus}</ThemedText>
-    <ThemedText style={styles.exerciseDescription}>{ex.description}</ThemedText>
-    <TouchableOpacity
-      style={styles.demoButton}
-      onPress={() => Linking.openURL(`https://www.youtube.com/results?search_query=${encodeURIComponent(ex.name + ' exercise proper form')}`)}>
-      <ThemedText style={styles.demoButtonText}>▶ Watch Demo</ThemedText>
-    </TouchableOpacity>
-  </ThemedView>
-))}
+            <ThemedView key={i} style={styles.exerciseCard}>
+              <ThemedText type="defaultSemiBold">{i + 1}. {ex.name}</ThemedText>
+              <ThemedText style={styles.exerciseDetail}>{ex.sets} sets × {ex.reps} reps</ThemedText>
+              <ThemedText style={styles.exerciseFocus}>Focus: {ex.focus}</ThemedText>
+              <ThemedText style={styles.exerciseDescription}>{ex.description}</ThemedText>
+              <TouchableOpacity
+                style={styles.demoButton}
+                onPress={() => Linking.openURL(`https://www.youtube.com/results?search_query=${encodeURIComponent(ex.name + ' exercise proper form')}`)}>
+                <ThemedText style={styles.demoButtonText}>▶ Watch Demo</ThemedText>
+              </TouchableOpacity>
+            </ThemedView>
+          ))}
+
+          {workout.cooldown && workout.cooldown.length > 0 && (
+            <ThemedView style={styles.cooldownCard}>
+              <ThemedText type="defaultSemiBold">🧘 Cool-down</ThemedText>
+              {workout.cooldown.map((c, i) => (
+                <ThemedText key={i} style={styles.warmupItem}>• {c}</ThemedText>
+              ))}
+            </ThemedView>
+          )}
 
           <TouchableOpacity
             style={[styles.doneButton, saved && styles.doneButtonSaved]}
@@ -139,24 +157,42 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   exerciseDescription: {
-  marginTop: 4,
-  fontSize: 13,
-  opacity: 0.9,
-},
-demoButton: {
-  marginTop: 8,
-  alignSelf: 'flex-start',
-  borderWidth: 1,
-  borderColor: '#1D8CF8',
-  borderRadius: 6,
-  paddingVertical: 6,
-  paddingHorizontal: 12,
-},
-demoButtonText: {
-  color: '#1D8CF8',
-  fontSize: 13,
-  fontWeight: '600',
-},
+    marginTop: 4,
+    fontSize: 13,
+    opacity: 0.9,
+  },
+  demoButton: {
+    marginTop: 8,
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: '#1D8CF8',
+    borderRadius: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  demoButtonText: {
+    color: '#1D8CF8',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  warmupCard: {
+    marginTop: 16,
+    padding: 14,
+    borderRadius: 8,
+    backgroundColor: '#2a2410',
+    gap: 4,
+  },
+  cooldownCard: {
+    marginTop: 4,
+    padding: 14,
+    borderRadius: 8,
+    backgroundColor: '#10202a',
+    gap: 4,
+  },
+  warmupItem: {
+    fontSize: 13,
+    opacity: 0.9,
+  },
   doneButton: {
     backgroundColor: '#22A559',
     borderRadius: 8,
