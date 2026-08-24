@@ -46,13 +46,7 @@ export default function WorkoutScreen() {
     if (!workout) return;
     try {
       const db = await SQLite.openDatabaseAsync('atlas.db');
-      await db.execAsync(`
-        CREATE TABLE IF NOT EXISTS workout_history (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          date TEXT,
-          workout_json TEXT
-        );
-      `);
+    
       const today = new Date().toISOString().split('T')[0];
       await db.runAsync(
         'INSERT INTO workout_history (date, workout_json) VALUES (?, ?)',

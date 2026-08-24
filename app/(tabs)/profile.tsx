@@ -3,7 +3,6 @@ import { StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert } from 'reac
 import * as SQLite from 'expo-sqlite';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
 
 const GOALS = ['Lose Weight', 'Build Muscle', 'Stay Fit', 'Improve Endurance'];
 const EQUIPMENT = ['None / Bodyweight', 'Dumbbells', 'Full Gym'];
@@ -22,20 +21,6 @@ export default function ProfileScreen() {
 
   const setupAndLoad = async () => {
     const db = await SQLite.openDatabaseAsync('atlas.db');
-    await db.execAsync(`
-      CREATE TABLE IF NOT EXISTS profile (
-        id INTEGER PRIMARY KEY NOT NULL,
-        name TEXT,
-        goal TEXT,
-        equipment TEXT
-      );
-    `);
-    try {
-      await db.execAsync('ALTER TABLE profile ADD COLUMN time_available TEXT;');
-    } catch {
-      // Column already exists, ignore
-    }
-
     const row = await db.getFirstAsync<{ name: string; goal: string; equipment: string; time_available: string }>(
       'SELECT * FROM profile WHERE id = 1'
     );
@@ -141,7 +126,6 @@ export default function ProfileScreen() {
         <ThemedText style={styles.saveButtonText}>Save Profile</ThemedText>
       </TouchableOpacity>
 
-      
     </ScrollView>
   );
 }
@@ -166,10 +150,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#fff',
   },
-  testLink: {
-  marginTop: 30,
-  alignSelf: 'center',
-},
   optionsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',

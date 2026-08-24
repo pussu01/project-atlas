@@ -20,13 +20,7 @@ export default function ProgressScreen() {
     setLoading(true);
     try {
       const db = await SQLite.openDatabaseAsync('atlas.db');
-      await db.execAsync(`
-  CREATE TABLE IF NOT EXISTS workout_history (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    date TEXT,
-    workout_json TEXT
-  );
-`);
+      
       const rows = await db.getAllAsync<HistoryRow>(
         'SELECT * FROM workout_history ORDER BY id DESC'
       );
