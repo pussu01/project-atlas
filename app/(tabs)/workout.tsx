@@ -18,9 +18,18 @@ export default function WorkoutScreen() {
     setSaved(false);
     try {
       const db = await SQLite.openDatabaseAsync('atlas.db');
-      const profileRow = await db.getFirstAsync<{ goal: string; equipment: string; time_available: string }>(
-        'SELECT goal, equipment, time_available FROM profile WHERE id = 1'
-      );
+     const profileRow = await db.getFirstAsync<{
+  goal: string;
+  equipment: string;
+  time_available: string;
+  age: number | null;
+  sex: string;
+  height_cm: number | null;
+  fitness_level: string;
+  exercises_to_avoid: string;
+}>(
+  'SELECT goal, equipment, time_available, age, sex, height_cm, fitness_level, exercises_to_avoid FROM profile WHERE id = 1'
+);
 
       if (!profileRow || !profileRow.goal) {
         Alert.alert('No profile found', 'Please fill in your Profile tab first.');
@@ -29,10 +38,15 @@ export default function WorkoutScreen() {
       }
 
       const result = await generateWorkout({
-        goal: profileRow.goal,
-        equipment: profileRow.equipment ? profileRow.equipment.split(',') : [],
-        timeAvailable: profileRow.time_available || '30 min',
-      });
+  goal: profileRow.goal,
+  equipment: profileRow.equipment ? profileRow.equipment.split(',') : [],
+  timeAvailable: profileRow.time_available || '30 min',
+  age: profileRow.age ?? null,
+  sex: profileRow.sex || '',
+  heightCm: profileRow.height_cm ?? null,
+  fitnessLevel: profileRow.fitness_level || '',
+  exercisesToAvoid: profileRow.exercises_to_avoid || '',
+});
 
       setWorkout(result);
     } catch (err: any) {

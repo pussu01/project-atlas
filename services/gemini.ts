@@ -24,44 +24,34 @@ export async function generateWorkout(profile: {
   goal: string;
   equipment: string[];
   timeAvailable: string;
+  age?: number | null;
+  sex?: string;
+  heightCm?: number | null;
+  fitnessLevel?: string;
+  exercisesToAvoid?: string;
 }): Promise<WorkoutPlan> {
-  const prompt = `You are a fitness coach. Create a single workout for today for a person with this profile:
-
+    const prompt = `You are a fitness coach. Create a single workout for today for a person with this profile:
 Goal: ${profile.goal}
+${profile.age ? `Age: ${profile.age}` : ''}
+${profile.sex ? `Sex: ${profile.sex}` : ''}
+${profile.heightCm ? `Height: ${profile.heightCm} cm` : ''}
+${profile.fitnessLevel ? `Fitness level: ${profile.fitnessLevel}` : ''}
 Available equipment: ${profile.equipment.join(', ') || 'bodyweight only'}
 Time available: ${profile.timeAvailable || '30 min'}
+${profile.exercisesToAvoid ? `Exercises to avoid: ${profile.exercisesToAvoid}` : ''}
 
-Size the number of main exercises to fit within the time available, including warm-up and cool-down.
-
-For shorter times (15 min), include fewer exercises (2-3) with a brief warm-up/cool-down.
-
-For longer times (45-60+ min), include more exercises (5-6) with a fuller warm-up/cool-down.
+Size the number of main exercises to fit within the time available, including warm-up and cool-down. For shorter times (15 min), include fewer exercises (2-3) with a brief warm-up/cool-down. For longer times (45-60+ min), include more exercises (5-6) with a fuller warm-up/cool-down.
+Adjust difficulty, exercise selection and volume to match the user's fitness level.
+Do not include any exercises listed under exercises to avoid.
 
 Return ONLY valid JSON, no markdown formatting, no extra text, in exactly this shape:
-
 {
   "title": "short workout title",
-  "warmup": [
-    {
-      "name": "short warm-up movement",
-      "seconds": 30
-    }
-  ],
+  "warmup": [{ "name": "short warm-up movement", "seconds": 30 }],
   "exercises": [
-    {
-      "name": "exercise name",
-      "sets": 3,
-      "reps": "10-12",
-      "focus": "muscle group",
-      "description": "one short sentence explaining how to perform this exercise with correct form"
-    }
+    { "name": "exercise name", "sets": 3, "reps": "10-12", "focus": "muscle group", "description": "one short sentence explaining how to perform this exercise with correct form" }
   ],
-  "cooldown": [
-    {
-      "name": "short cooldown stretch",
-      "seconds": 30
-    }
-  ]
+  "cooldown": [{ "name": "short cooldown stretch", "seconds": 30 }]
 }`;
 
   const response = await fetch(

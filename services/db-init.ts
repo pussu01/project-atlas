@@ -33,4 +33,34 @@ export async function initDatabase(): Promise<void> {
   } catch {
     // Column already exists — safe to ignore.
   }
+
+  try {
+    await db.execAsync('ALTER TABLE profile ADD COLUMN age INTEGER;');
+  } catch {
+    // Column already exists — safe to ignore.
+  }
+
+  try {
+    await db.execAsync('ALTER TABLE profile ADD COLUMN sex TEXT;');
+  } catch {
+    // Column already exists — safe to ignore.
+  }
+
+  try {
+    await db.execAsync('ALTER TABLE profile ADD COLUMN height_cm REAL;');
+  } catch {
+    // Column already exists — safe to ignore.
+  }
+
+  try {
+    await db.execAsync('ALTER TABLE profile ADD COLUMN fitness_level TEXT;');
+  } catch {
+    // Column already exists — safe to ignore.
+  }
+
+  try {
+    await db.execAsync('ALTER TABLE profile ADD COLUMN exercises_to_avoid TEXT;');
+  } catch {
+    // Column already exists — safe to ignore.
+  }
 }
