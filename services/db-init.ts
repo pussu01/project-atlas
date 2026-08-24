@@ -22,6 +22,22 @@ export async function initDatabase(): Promise<void> {
     );
   `);
 
+  // ── Measurements ─────────────────────────────────────────────────────────
+  // Each row represents one historical body measurement.
+  // Weight is required; other measurements are optional.
+
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS measurements (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      date TEXT NOT NULL,
+      weight_kg REAL NOT NULL,
+      waist_cm REAL,
+      chest_cm REAL,
+      hips_cm REAL,
+      neck_cm REAL
+    );
+  `);
+
   // ── Migrations ────────────────────────────────────────────────────────────
   // Each ALTER TABLE is wrapped in its own try/catch.
   // SQLite does not support ALTER TABLE … IF NOT EXISTS, so we catch the
@@ -59,7 +75,9 @@ export async function initDatabase(): Promise<void> {
   }
 
   try {
-    await db.execAsync('ALTER TABLE profile ADD COLUMN exercises_to_avoid TEXT;');
+    await db.execAsync(
+      'ALTER TABLE profile ADD COLUMN exercises_to_avoid TEXT;'
+    );
   } catch {
     // Column already exists — safe to ignore.
   }
