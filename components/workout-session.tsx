@@ -283,14 +283,18 @@ export default function WorkoutSession({ workout, onComplete, onExit }: Props) {
           </View>
 
           <View style={styles.adjustRow}>
-            <TouchableOpacity style={styles.adjustButton} onPress={decreaseRest}>
-              <ThemedText style={styles.adjustButtonText}>Less 30s</ThemedText>
-            </TouchableOpacity>
-            <ThemedText style={styles.adjustLabel}>Rest: {restDuration}s</ThemedText>
-            <TouchableOpacity style={styles.adjustButton} onPress={increaseRest}>
-              <ThemedText style={styles.adjustButtonText}>More 30s</ThemedText>
-            </TouchableOpacity>
-          </View>
+  <TouchableOpacity style={styles.adjustButton} onPress={decreaseRest}>
+    <ThemedText style={styles.adjustButtonText}>Less 30s</ThemedText>
+  </TouchableOpacity>
+
+  <ThemedText style={styles.adjustLabel}>
+    Rest: {restDuration}s
+  </ThemedText>
+
+  <TouchableOpacity style={styles.adjustButton} onPress={increaseRest}>
+    <ThemedText style={styles.adjustButtonText}>More 30s</ThemedText>
+  </TouchableOpacity>
+</View>
 
           {nextExercise && (
             <ThemedView style={styles.upNextCard}>
