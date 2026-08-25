@@ -1,4 +1,4 @@
-const API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
+import { getGeminiApiKey } from './gemini-key';
 
 export type WorkoutExercise = {
   name: string;
@@ -30,7 +30,12 @@ export async function generateWorkout(profile: {
   fitnessLevel?: string;
   exercisesToAvoid?: string;
 }): Promise<WorkoutPlan> {
-    const prompt = `You are a fitness coach. Create a single workout for today for a person with this profile:
+  const apiKey = await getGeminiApiKey();
+  if (!apiKey) {
+    throw new Error('Gemini API key is not configured. Please add your Gemini API key in Profile.');
+  }
+
+  const prompt = `You are a fitness coach. Create a single workout for today for a person with this profile:
 Goal: ${profile.goal}
 ${profile.age ? `Age: ${profile.age}` : ''}
 ${profile.sex ? `Sex: ${profile.sex}` : ''}
@@ -55,7 +60,7 @@ Return ONLY valid JSON, no markdown formatting, no extra text, in exactly this s
 }`;
 
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${API_KEY}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -91,10 +96,15 @@ Return ONLY valid JSON, no markdown formatting, no extra text, in exactly this s
 export async function generateExerciseSketch(
   exerciseName: string
 ): Promise<string> {
+  const apiKey = await getGeminiApiKey();
+  if (!apiKey) {
+    throw new Error('Gemini API key is not configured. Please add your Gemini API key in Profile.');
+  }
+
   const prompt = `Simple black and white line-art sketch, minimal style, showing a person demonstrating the exercise "${exerciseName}". Two or three sequential poses showing the movement from start to end position. No color, no background, no text labels, clean instructional fitness diagram style, similar to a physical therapy handout.`;
 
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image:generateContent?key=${API_KEY}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image:generateContent?key=${apiKey}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -118,4 +128,28 @@ export async function generateExerciseSketch(
   }
 
   return `data:image/png;base64,${imagePart.inlineData.data}`;
+}
+
+export async function testGeminiConnection(apiKeyToTest: string): Promise<void> {
+  const trimmed = apiKeyToTest.trim();
+  if (!trimmed) {
+    throw new Error('No API key provided.');
+  }
+
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${trimmed}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: 'Reply with the single word: OK' }] }],
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => null);
+    const message = data?.error?.message || 'Could not authenticate with the provided key.';
+    throw new Error(message);
+  }
 }
