@@ -20,6 +20,50 @@ export type WorkoutPlan = {
   cooldown: WorkoutStep[];
 };
 
+export type RecentWorkoutSummary = {
+  date: string;
+  title: string;
+  exercises: { name: string; focus: string }[];
+};
+
+export type RecentMeasurementSummary = {
+  date: string;
+  weightKg: number | null;
+  waistCm: number | null;
+  chestCm: number | null;
+  hipsCm: number | null;
+  neckCm: number | null;
+};
+
+function formatRecentWorkouts(workouts?: RecentWorkoutSummary[]): string {
+  if (!workouts || workouts.length === 0) {
+    return '';
+  }
+  const blocks = workouts.map((w) => {
+    const exerciseLines = w.exercises
+      .map((e) => `- ${e.name}${e.focus ? ` — ${e.focus}` : ''}`)
+      .join('\n');
+    return `${w.date}\nTitle: ${w.title}\nExercises:\n${exerciseLines}`;
+  });
+  return `RECENT COMPLETED WORKOUTS:\n\n${blocks.join('\n\n')}`;
+}
+
+function formatRecentMeasurements(measurements?: RecentMeasurementSummary[]): string {
+  if (!measurements || measurements.length === 0) {
+    return '';
+  }
+  const blocks = measurements.map((m) => {
+    const parts: string[] = [];
+    if (m.weightKg != null) parts.push(`Weight: ${m.weightKg} kg`);
+    if (m.waistCm != null) parts.push(`Waist: ${m.waistCm} cm`);
+    if (m.chestCm != null) parts.push(`Chest: ${m.chestCm} cm`);
+    if (m.hipsCm != null) parts.push(`Hips: ${m.hipsCm} cm`);
+    if (m.neckCm != null) parts.push(`Neck: ${m.neckCm} cm`);
+    return `${m.date}\n${parts.join('\n')}`;
+  });
+  return `RECENT BODY MEASUREMENTS:\n\n${blocks.join('\n\n')}`;
+}
+
 export async function generateWorkout(profile: {
   goal: string;
   equipment: string[];
@@ -29,11 +73,17 @@ export async function generateWorkout(profile: {
   heightCm?: number | null;
   fitnessLevel?: string;
   exercisesToAvoid?: string;
+  recentWorkouts?: RecentWorkoutSummary[];
+  recentMeasurements?: RecentMeasurementSummary[];
+  recoveryConstraint?: string | null;
 }): Promise<WorkoutPlan> {
   const apiKey = await getGeminiApiKey();
   if (!apiKey) {
     throw new Error('Gemini API key is not configured. Please add your Gemini API key in Profile.');
   }
+
+  const recentWorkoutsBlock = formatRecentWorkouts(profile.recentWorkouts);
+  const recentMeasurementsBlock = formatRecentMeasurements(profile.recentMeasurements);
 
   const prompt = `You are a fitness coach. Create a single workout for today for a person with this profile:
 Goal: ${profile.goal}
@@ -43,11 +93,22 @@ ${profile.heightCm ? `Height: ${profile.heightCm} cm` : ''}
 ${profile.fitnessLevel ? `Fitness level: ${profile.fitnessLevel}` : ''}
 Available equipment: ${profile.equipment.join(', ') || 'bodyweight only'}
 Time available: ${profile.timeAvailable || '30 min'}
-${profile.exercisesToAvoid ? `Exercises to avoid: ${profile.exercisesToAvoid}` : ''}
+${profile.exercisesToAvoid ? `Special Instructions / Health & Exercise Considerations: ${profile.exercisesToAvoid}` : ''}
+
+${recentWorkoutsBlock}
+
+${recentMeasurementsBlock}
+
+${profile.recoveryConstraint || ''}
 
 Size the number of main exercises to fit within the time available, including warm-up and cool-down. For shorter times (15 min), include fewer exercises (2-3) with a brief warm-up/cool-down. For longer times (45-60+ min), include more exercises (5-6) with a fuller warm-up/cool-down.
 Adjust difficulty, exercise selection and volume to match the user's fitness level.
-Do not include any exercises listed under exercises to avoid.
+
+Use recent workout history to avoid unnecessarily repeating the same workout. Do not simply reproduce the most recent workout. Variation should be purposeful and appropriate to the user's goal, equipment, fitness level and recovery. Prefer sensible progression and exercise variation over random changes. Do not introduce random exercises merely for the sake of variety.
+
+Treat the user's special instructions and health/exercise considerations as constraints. Do not recommend exercises that directly conflict with stated restrictions. Do not diagnose medical conditions. If the user's stated condition or request requires medical judgment, favor conservative exercise selection and intensity rather than attempting a diagnosis or medical recommendation.
+
+Do not include any exercises listed under special instructions if they describe exercises to avoid.
 
 Return ONLY valid JSON, no markdown formatting, no extra text, in exactly this shape:
 {

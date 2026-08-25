@@ -4,6 +4,7 @@ import * as SQLite from 'expo-sqlite';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { generateWorkout, WorkoutPlan } from '@/services/gemini';
+import { getRecentWorkouts, getRecentMeasurements, calculateRecoveryConstraint } from '@/services/workout-context';
 import WorkoutSession from '@/components/workout-session';
 
 export default function WorkoutScreen() {
@@ -18,18 +19,18 @@ export default function WorkoutScreen() {
     setSaved(false);
     try {
       const db = await SQLite.openDatabaseAsync('atlas.db');
-     const profileRow = await db.getFirstAsync<{
-  goal: string;
-  equipment: string;
-  time_available: string;
-  age: number | null;
-  sex: string;
-  height_cm: number | null;
-  fitness_level: string;
-  exercises_to_avoid: string;
-}>(
-  'SELECT goal, equipment, time_available, age, sex, height_cm, fitness_level, exercises_to_avoid FROM profile WHERE id = 1'
-);
+      const profileRow = await db.getFirstAsync<{
+        goal: string;
+        equipment: string;
+        time_available: string;
+        age: number | null;
+        sex: string;
+        height_cm: number | null;
+        fitness_level: string;
+        exercises_to_avoid: string;
+      }>(
+        'SELECT goal, equipment, time_available, age, sex, height_cm, fitness_level, exercises_to_avoid FROM profile WHERE id = 1'
+      );
 
       if (!profileRow || !profileRow.goal) {
         Alert.alert('No profile found', 'Please fill in your Profile tab first.');
@@ -37,16 +38,23 @@ export default function WorkoutScreen() {
         return;
       }
 
+      const recentWorkouts = await getRecentWorkouts(5);
+      const recentMeasurements = await getRecentMeasurements(3);
+      const recoveryConstraint = calculateRecoveryConstraint(recentWorkouts);
+
       const result = await generateWorkout({
-  goal: profileRow.goal,
-  equipment: profileRow.equipment ? profileRow.equipment.split(',') : [],
-  timeAvailable: profileRow.time_available || '30 min',
-  age: profileRow.age ?? null,
-  sex: profileRow.sex || '',
-  heightCm: profileRow.height_cm ?? null,
-  fitnessLevel: profileRow.fitness_level || '',
-  exercisesToAvoid: profileRow.exercises_to_avoid || '',
-});
+        goal: profileRow.goal,
+        equipment: profileRow.equipment ? profileRow.equipment.split(',') : [],
+        timeAvailable: profileRow.time_available || '30 min',
+        age: profileRow.age ?? null,
+        sex: profileRow.sex || '',
+        heightCm: profileRow.height_cm ?? null,
+        fitnessLevel: profileRow.fitness_level || '',
+        exercisesToAvoid: profileRow.exercises_to_avoid || '',
+        recentWorkouts,
+        recentMeasurements,
+        recoveryConstraint,
+      });
 
       setWorkout(result);
     } catch (err: any) {
@@ -60,7 +68,6 @@ export default function WorkoutScreen() {
     if (!workout) return;
     try {
       const db = await SQLite.openDatabaseAsync('atlas.db');
-    
       const today = new Date().toISOString().split('T')[0];
       await db.runAsync(
         'INSERT INTO workout_history (date, workout_json) VALUES (?, ?)',
@@ -72,18 +79,19 @@ export default function WorkoutScreen() {
       Alert.alert('Error', err.message || 'Could not save workout.');
     }
   };
+
   if (sessionActive && workout) {
-  return (
-    <WorkoutSession
-      workout={workout}
-      onExit={() => setSessionActive(false)}
-      onComplete={() => {
-        setSessionActive(false);
-        handleMarkDone();
-      }}
-    />
-  );
-}
+    return (
+      <WorkoutSession
+        workout={workout}
+        onExit={() => setSessionActive(false)}
+        onComplete={() => {
+          setSessionActive(false);
+          handleMarkDone();
+        }}
+      />
+    );
+  }
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -101,15 +109,15 @@ export default function WorkoutScreen() {
         <>
           <ThemedText type="subtitle" style={{ marginTop: 20 }}>{workout.title}</ThemedText>
           <TouchableOpacity style={styles.startSessionButton} onPress={() => setSessionActive(true)}>
-  <ThemedText style={styles.buttonText}>▶ Start Workout</ThemedText>
-</TouchableOpacity>
+            <ThemedText style={styles.buttonText}>▶ Start Workout</ThemedText>
+          </TouchableOpacity>
 
           {workout.warmup && workout.warmup.length > 0 && (
             <ThemedView style={styles.warmupCard}>
               <ThemedText type="defaultSemiBold">🔥 Warm-up</ThemedText>
               {workout.warmup.map((w, i) => (
-  <ThemedText key={i} style={styles.warmupItem}>• {w.name} ({w.seconds}s)</ThemedText>
-))}
+                <ThemedText key={i} style={styles.warmupItem}>• {w.name} ({w.seconds}s)</ThemedText>
+              ))}
             </ThemedView>
           )}
 
@@ -131,8 +139,8 @@ export default function WorkoutScreen() {
             <ThemedView style={styles.cooldownCard}>
               <ThemedText type="defaultSemiBold">🧘 Cool-down</ThemedText>
               {workout.cooldown.map((c, i) => (
-  <ThemedText key={i} style={styles.warmupItem}>• {c.name} ({c.seconds}s)</ThemedText>
-))}
+                <ThemedText key={i} style={styles.warmupItem}>• {c.name} ({c.seconds}s)</ThemedText>
+              ))}
             </ThemedView>
           )}
 
@@ -218,7 +226,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     opacity: 0.9,
   },
-    doneButton: {
+  doneButton: {
     backgroundColor: '#22A559',
     borderRadius: 8,
     paddingVertical: 14,

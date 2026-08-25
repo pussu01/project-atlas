@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, KeyboardAvoidingView, Platform } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
 import * as SQLite from 'expo-sqlite';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -298,22 +299,34 @@ export default function ProfileScreen() {
           ))}
         </ThemedView>
 
-        {/* Exercises to Avoid */}
-        <ThemedText type="subtitle" style={styles.label}>Exercises to Avoid</ThemedText>
-        <TextInput
-          style={[styles.input, styles.textArea]}
-          placeholder="e.g. deep squats, jumping exercises"
-          placeholderTextColor="#888"
-          value={exercisesToAvoid}
-          onChangeText={setExercisesToAvoid}
-          multiline
-          numberOfLines={3}
-        />
+        {/* Special Instructions */}
+<ThemedText type="subtitle" style={styles.label}>Special Instructions / Health & Exercise Considerations</ThemedText>
+<TextInput
+  style={[styles.input, styles.textArea]}
+  placeholder="Injuries, medical conditions, exercises to avoid, or anything else Atlas should consider when creating your workouts."
+  placeholderTextColor="#888"
+  value={exercisesToAvoid}
+  onChangeText={setExercisesToAvoid}
+  multiline
+  numberOfLines={3}
+/>
 
         {/* AI Coach */}
         <ThemedText type="subtitle" style={styles.label}>AI Coach</ThemedText>
         <ThemedView style={styles.aiCoachCard}>
           <ThemedText type="defaultSemiBold">Gemini API Key</ThemedText>
+          <ThemedText style={styles.aiExplainer}>
+  An API key is a private code that allows Atlas to use Google's Gemini AI on your behalf. Your key is stored securely on this device and is used when Atlas requests AI features.
+</ThemedText>
+<TouchableOpacity
+  onPress={() =>
+    WebBrowser.openBrowserAsync(
+      'https://ai.google.dev/gemini-api/docs/api-key'
+    )
+  }
+>
+  <ThemedText style={styles.aiLink}>How to get a Gemini API key →</ThemedText>
+</TouchableOpacity>
 
           {!geminiConnected ? (
             <>
@@ -514,7 +527,19 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingVertical: 10,
     alignItems: 'center',
+
   },
+  aiExplainer: {
+  fontSize: 12,
+  opacity: 0.7,
+  lineHeight: 17,
+},
+aiLink: {
+  fontSize: 13,
+  color: '#1D8CF8',
+  fontWeight: '600',
+  marginBottom: 4,
+},
   saveKeyButton: {
     flex: 1,
     backgroundColor: '#1D8CF8',
