@@ -121,7 +121,7 @@ Return ONLY valid JSON, no markdown formatting, no extra text, in exactly this s
 }`;
 
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${apiKey}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -198,7 +198,7 @@ export async function testGeminiConnection(apiKeyToTest: string): Promise<void> 
   }
 
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${trimmed}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${trimmed}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

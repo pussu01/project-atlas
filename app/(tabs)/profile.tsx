@@ -6,6 +6,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { getGeminiApiKey, saveGeminiApiKey, deleteGeminiApiKey, hasGeminiApiKey } from '@/services/gemini-key';
 import { testGeminiConnection } from '@/services/gemini';
+import { Link } from 'expo-router';
 
 const GOALS = ['Lose Weight', 'Build Muscle', 'Stay Fit', 'Improve Endurance'];
 const EQUIPMENT = ['None / Bodyweight', 'Dumbbells', 'Full Gym'];
@@ -389,6 +390,9 @@ export default function ProfileScreen() {
             </ThemedView>
           )}
         </ThemedView>
+        <Link href="/pose-test" style={{ marginTop: 20, alignSelf: 'center' }}>
+  <ThemedText style={{ color: '#888', fontSize: 12 }}>[Dev] Pose Test Screen →</ThemedText>
+</Link>
 
         <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
           <ThemedText style={styles.saveButtonText}>Save Profile</ThemedText>
