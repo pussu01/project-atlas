@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   StyleSheet,
   Linking,
@@ -6,8 +6,14 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  View,
 } from 'react-native';
-import { router } from 'expo-router';
+
+import {
+  router,
+  useLocalSearchParams,
+} from 'expo-router';
+
 import * as SQLite from 'expo-sqlite';
 
 import { ThemedText } from '@/components/themed-text';
@@ -32,12 +38,80 @@ import WorkoutSession, {
   WorkoutSessionSummary,
 } from '@/components/workout-session';
 
+/* ================================================================
+   HELPERS
+   ================================================================ */
+
+function isValidWorkoutPlan(value: any): value is WorkoutPlan {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  if (typeof value.title !== 'string') {
+    return false;
+  }
+
+  if (!Array.isArray(value.exercises)) {
+    return false;
+  }
+
+  if (value.exercises.length === 0) {
+    return false;
+  }
+
+  if (!Array.isArray(value.warmup)) {
+    return false;
+  }
+
+  if (!Array.isArray(value.cooldown)) {
+    return false;
+  }
+
+  return true;
+}
+
+function parseRepeatedWorkout(
+  repeatWorkout: string | undefined
+): WorkoutPlan | null {
+  if (!repeatWorkout) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(repeatWorkout);
+
+    if (!isValidWorkoutPlan(parsed)) {
+      return null;
+    }
+
+    /*
+     * Remove old session summary.
+     * A repeated workout is treated as a fresh workout.
+     */
+
+    return {
+      title: parsed.title,
+      warmup: parsed.warmup,
+      exercises: parsed.exercises,
+      cooldown: parsed.cooldown,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export default function WorkoutScreen() {
+  const params = useLocalSearchParams<{
+    repeatWorkout?: string;
+  }>();
+
   const [loading, setLoading] = useState(false);
+
   const [workout, setWorkout] =
     useState<WorkoutPlan | null>(null);
 
   const [saved, setSaved] = useState(false);
+
   const [sessionActive, setSessionActive] =
     useState(false);
 
@@ -47,12 +121,49 @@ export default function WorkoutScreen() {
   const [needsGemini, setNeedsGemini] =
     useState(false);
 
+  const [isRepeatedWorkout, setIsRepeatedWorkout] =
+    useState(false);
+
+  /* ================================================================
+     LOAD REPEATED WORKOUT
+     ================================================================ */
+
+  useEffect(() => {
+    if (!params.repeatWorkout) {
+      return;
+    }
+
+    const repeated =
+      parseRepeatedWorkout(params.repeatWorkout);
+
+    if (!repeated) {
+      Alert.alert(
+        'Unable to Repeat Workout',
+        'The saved workout could not be loaded.'
+      );
+      return;
+    }
+
+    setWorkout(repeated);
+    setSaved(false);
+    setNeedsProfile(false);
+    setNeedsGemini(false);
+    setIsRepeatedWorkout(true);
+    setSessionActive(false);
+  }, [params.repeatWorkout]);
+
+  /* ================================================================
+     GENERATE NEW WORKOUT
+     ================================================================ */
+
   const handleGenerate = async () => {
     setLoading(true);
+
     setWorkout(null);
     setSaved(false);
     setNeedsProfile(false);
     setNeedsGemini(false);
+    setIsRepeatedWorkout(false);
 
     try {
       /*
@@ -161,6 +272,7 @@ export default function WorkoutScreen() {
       });
 
       setWorkout(result);
+      setIsRepeatedWorkout(false);
     } catch (err: any) {
       console.error(
         'Workout generation failed:',
@@ -177,21 +289,17 @@ export default function WorkoutScreen() {
     }
   };
 
-  /**
-   * ------------------------------------------------------------
-   * GO TO PROFILE
-   * ------------------------------------------------------------
-   */
+  /* ================================================================
+     GO TO PROFILE
+     ================================================================ */
 
   const handleGoToProfile = () => {
     router.push('/profile');
   };
 
-  /**
-   * ------------------------------------------------------------
-   * SAVE COMPLETED WORKOUT
-   * ------------------------------------------------------------
-   */
+  /* ================================================================
+     SAVE COMPLETED WORKOUT
+     ================================================================ */
 
   const handleMarkDone = async (
     summary?: WorkoutSessionSummary
@@ -262,11 +370,9 @@ export default function WorkoutScreen() {
     }
   };
 
-  /*
-   * --------------------------------------------------------------
-   * ACTIVE WORKOUT SESSION
-   * --------------------------------------------------------------
-   */
+  /* ================================================================
+     ACTIVE WORKOUT SESSION
+     ================================================================ */
 
   if (sessionActive && workout) {
     return (
@@ -285,11 +391,9 @@ export default function WorkoutScreen() {
     );
   }
 
-  /*
-   * --------------------------------------------------------------
-   * MAIN SCREEN
-   * --------------------------------------------------------------
-   */
+  /* ================================================================
+     MAIN SCREEN
+     ================================================================ */
 
   return (
     <ScrollView
@@ -300,17 +404,36 @@ export default function WorkoutScreen() {
         BHEEMAI
       </ThemedText>
 
-      <ThemedText
-        type="title"
-        style={styles.pageTitle}
-      >
-        Today's Workout
-      </ThemedText>
+      <View style={styles.titleRow}>
+        <View style={{ flex: 1 }}>
+          <ThemedText
+            type="title"
+            style={styles.pageTitle}
+          >
+            {isRepeatedWorkout
+              ? 'Repeated Workout'
+              : "Today's Workout"}
+          </ThemedText>
 
-      <ThemedText style={styles.pageSubtitle}>
-        Your workout adapts to your goals,
-        recovery and recent training.
-      </ThemedText>
+          <ThemedText style={styles.pageSubtitle}>
+            {isRepeatedWorkout
+              ? 'This is your previously completed workout. Gemini is not being used.'
+              : 'Your workout adapts to your goals, recovery and recent training.'}
+          </ThemedText>
+        </View>
+      </View>
+
+      {isRepeatedWorkout && workout && (
+        <ThemedView style={styles.repeatBanner}>
+          <ThemedText style={styles.repeatBannerTitle}>
+            ↻ Repeated Workout
+          </ThemedText>
+
+          <ThemedText style={styles.repeatBannerText}>
+            You're training the exact workout you completed previously.
+          </ThemedText>
+        </ThemedView>
+      )}
 
       {needsProfile && (
         <ThemedView style={styles.setupCard}>
@@ -376,6 +499,8 @@ export default function WorkoutScreen() {
         <ThemedText style={styles.buttonText}>
           {loading
             ? 'Generating...'
+            : isRepeatedWorkout
+            ? 'Generate New Workout'
             : "Generate Today's Workout"}
         </ThemedText>
       </TouchableOpacity>
@@ -409,9 +534,7 @@ export default function WorkoutScreen() {
 
           {workout.warmup &&
             workout.warmup.length > 0 && (
-              <ThemedView
-                style={styles.warmupCard}
-              >
+              <ThemedView style={styles.warmupCard}>
                 <ThemedText type="defaultSemiBold">
                   🔥 Warm-up
                 </ThemedText>
@@ -468,25 +591,21 @@ export default function WorkoutScreen() {
                   style={styles.demoButton}
                   onPress={() => {
                     const url =
-                      `https://www.youtube.com/results?search_query=` +
+                      'https://www.youtube.com/results?search_query=' +
                       encodeURIComponent(
                         `${ex.name} exercise proper form`
                       );
 
-                    Linking.openURL(url).catch(
-                      () => {
-                        Alert.alert(
-                          'Unable to open YouTube',
-                          'Please try again.'
-                        );
-                      }
-                    );
+                    Linking.openURL(url).catch(() => {
+                      Alert.alert(
+                        'Unable to open YouTube',
+                        'Please try again.'
+                      );
+                    });
                   }}
                 >
                   <ThemedText
-                    style={
-                      styles.demoButtonText
-                    }
+                    style={styles.demoButtonText}
                   >
                     ▶ Watch Demo
                   </ThemedText>
@@ -497,9 +616,7 @@ export default function WorkoutScreen() {
 
           {workout.cooldown &&
             workout.cooldown.length > 0 && (
-              <ThemedView
-                style={styles.cooldownCard}
-              >
+              <ThemedView style={styles.cooldownCard}>
                 <ThemedText type="defaultSemiBold">
                   🧘 Cool-down
                 </ThemedText>
@@ -561,6 +678,11 @@ const styles = StyleSheet.create({
     gap: 12,
   },
 
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+
   button: {
     backgroundColor: '#F28C18',
     borderRadius: 14,
@@ -598,11 +720,26 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
 
-  /*
-   * ================================================================
-   * SETUP / EMPTY STATE
-   * ================================================================
-   */
+  repeatBanner: {
+    backgroundColor: '#17130D',
+    borderWidth: 1,
+    borderColor: '#3A2B17',
+    borderRadius: 16,
+    padding: 15,
+    gap: 5,
+  },
+
+  repeatBannerTitle: {
+    color: '#F28C18',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+
+  repeatBannerText: {
+    fontSize: 13,
+    lineHeight: 19,
+    opacity: 0.7,
+  },
 
   setupCard: {
     marginTop: 10,
@@ -641,12 +778,6 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
 
-  /*
-   * ================================================================
-   * START SESSION
-   * ================================================================
-   */
-
   startSessionButton: {
     backgroundColor: '#F28C18',
     borderRadius: 14,
@@ -657,12 +788,6 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
 
-  /*
-   * ================================================================
-   * SECTION HEADINGS
-   * ================================================================
-   */
-
   sectionTitle: {
     marginTop: 24,
     marginBottom: 7,
@@ -670,12 +795,6 @@ const styles = StyleSheet.create({
     lineHeight: 25,
     fontWeight: '800',
   },
-
-  /*
-   * ================================================================
-   * EXERCISE CARDS
-   * ================================================================
-   */
 
   exerciseCard: {
     padding: 17,
@@ -707,12 +826,6 @@ const styles = StyleSheet.create({
     opacity: 0.62,
   },
 
-  /*
-   * ================================================================
-   * WATCH DEMO
-   * ================================================================
-   */
-
   demoButton: {
     marginTop: 10,
     alignSelf: 'flex-start',
@@ -730,12 +843,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
-  /*
-   * ================================================================
-   * WARM-UP
-   * ================================================================
-   */
-
   warmupCard: {
     marginTop: 16,
     padding: 17,
@@ -752,12 +859,6 @@ const styles = StyleSheet.create({
     opacity: 0.72,
   },
 
-  /*
-   * ================================================================
-   * COOL-DOWN
-   * ================================================================
-   */
-
   cooldownCard: {
     marginTop: 8,
     padding: 17,
@@ -767,12 +868,6 @@ const styles = StyleSheet.create({
     borderColor: '#292929',
     gap: 6,
   },
-
-  /*
-   * ================================================================
-   * MARK AS DONE
-   * ================================================================
-   */
 
   doneButton: {
     backgroundColor: '#F28C18',
