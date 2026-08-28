@@ -1,16 +1,18 @@
 import { useState } from 'react';
 import {
-  Alert,
+  StyleSheet,
   Linking,
   ScrollView,
-  StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
+import { router } from 'expo-router';
 import * as SQLite from 'expo-sqlite';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+
 import {
   generateWorkout,
   WorkoutPlan,
@@ -21,6 +23,10 @@ import {
   getRecentMeasurements,
   calculateRecoveryConstraint,
 } from '@/services/workout-context';
+
+import {
+  hasGeminiApiKey,
+} from '@/services/gemini-key';
 
 import WorkoutSession, {
   WorkoutSessionSummary,
@@ -35,12 +41,26 @@ export default function WorkoutScreen() {
   const [sessionActive, setSessionActive] =
     useState(false);
 
+  const [needsProfile, setNeedsProfile] =
+    useState(false);
+
+  const [needsGemini, setNeedsGemini] =
+    useState(false);
+
   const handleGenerate = async () => {
     setLoading(true);
     setWorkout(null);
     setSaved(false);
+    setNeedsProfile(false);
+    setNeedsGemini(false);
 
     try {
+      /*
+       * ------------------------------------------------------------
+       * 1. CHECK PROFILE
+       * ------------------------------------------------------------
+       */
+
       const db =
         await SQLite.openDatabaseAsync('atlas.db');
 
@@ -69,14 +89,29 @@ export default function WorkoutScreen() {
         );
 
       if (!profileRow || !profileRow.goal) {
-        Alert.alert(
-          'No profile found',
-          'Please fill in your Profile tab first.'
-        );
-
-        setLoading(false);
+        setNeedsProfile(true);
         return;
       }
+
+      /*
+       * ------------------------------------------------------------
+       * 2. CHECK GEMINI CONNECTION
+       * ------------------------------------------------------------
+       */
+
+      const geminiConnected =
+        await hasGeminiApiKey();
+
+      if (!geminiConnected) {
+        setNeedsGemini(true);
+        return;
+      }
+
+      /*
+       * ------------------------------------------------------------
+       * 3. LOAD CONTEXT
+       * ------------------------------------------------------------
+       */
 
       const recentWorkouts =
         await getRecentWorkouts(5);
@@ -88,6 +123,12 @@ export default function WorkoutScreen() {
         calculateRecoveryConstraint(
           recentWorkouts
         );
+
+      /*
+       * ------------------------------------------------------------
+       * 4. GENERATE WORKOUT
+       * ------------------------------------------------------------
+       */
 
       const result = await generateWorkout({
         goal: profileRow.goal,
@@ -121,10 +162,15 @@ export default function WorkoutScreen() {
 
       setWorkout(result);
     } catch (err: any) {
+      console.error(
+        'Workout generation failed:',
+        err
+      );
+
       Alert.alert(
-        'Error',
+        'Couldn’t generate workout',
         err?.message ||
-          'Something went wrong while generating the workout.'
+          'Something went wrong while creating your workout. Please try again.'
       );
     } finally {
       setLoading(false);
@@ -132,11 +178,21 @@ export default function WorkoutScreen() {
   };
 
   /**
-   * Save a completed workout.
-   *
-   * Session metrics are embedded inside workout_json so we don't
-   * need to alter the SQLite schema right now.
+   * ------------------------------------------------------------
+   * GO TO PROFILE
+   * ------------------------------------------------------------
    */
+
+  const handleGoToProfile = () => {
+    router.push('/profile');
+  };
+
+  /**
+   * ------------------------------------------------------------
+   * SAVE COMPLETED WORKOUT
+   * ------------------------------------------------------------
+   */
+
   const handleMarkDone = async (
     summary?: WorkoutSessionSummary
   ) => {
@@ -206,11 +262,19 @@ export default function WorkoutScreen() {
     }
   };
 
+  /*
+   * --------------------------------------------------------------
+   * ACTIVE WORKOUT SESSION
+   * --------------------------------------------------------------
+   */
+
   if (sessionActive && workout) {
     return (
       <WorkoutSession
         workout={workout}
-        onExit={() => setSessionActive(false)}
+        onExit={() =>
+          setSessionActive(false)
+        }
         onComplete={(
           summary: WorkoutSessionSummary
         ) => {
@@ -221,22 +285,88 @@ export default function WorkoutScreen() {
     );
   }
 
+  /*
+   * --------------------------------------------------------------
+   * MAIN SCREEN
+   * --------------------------------------------------------------
+   */
+
   return (
     <ScrollView
       contentContainerStyle={styles.container}
       showsVerticalScrollIndicator={false}
     >
       <ThemedText style={styles.brand}>
-  BHEEMAI
-</ThemedText>
+        BHEEMAI
+      </ThemedText>
 
-<ThemedText type="title" style={styles.pageTitle}>
-  Today's Workout
-</ThemedText>
+      <ThemedText
+        type="title"
+        style={styles.pageTitle}
+      >
+        Today's Workout
+      </ThemedText>
 
-<ThemedText style={styles.pageSubtitle}>
-  Your workout adapts to your goals, recovery and recent training.
-</ThemedText>
+      <ThemedText style={styles.pageSubtitle}>
+        Your workout adapts to your goals,
+        recovery and recent training.
+      </ThemedText>
+
+      {needsProfile && (
+        <ThemedView style={styles.setupCard}>
+          <ThemedText
+            type="subtitle"
+            style={styles.setupTitle}
+          >
+            Let's set up your profile
+          </ThemedText>
+
+          <ThemedText style={styles.setupText}>
+            Tell BheemAI your goal, equipment
+            and available time so it can create
+            a personalized workout for you.
+          </ThemedText>
+
+          <TouchableOpacity
+            style={styles.setupButton}
+            onPress={handleGoToProfile}
+          >
+            <ThemedText
+              style={styles.setupButtonText}
+            >
+              Set Up Profile
+            </ThemedText>
+          </TouchableOpacity>
+        </ThemedView>
+      )}
+
+      {needsGemini && (
+        <ThemedView style={styles.setupCard}>
+          <ThemedText
+            type="subtitle"
+            style={styles.setupTitle}
+          >
+            Your AI coach isn't connected
+          </ThemedText>
+
+          <ThemedText style={styles.setupText}>
+            BheemAI uses your Gemini API key to
+            create personalized workouts. Your
+            key is stored on this device.
+          </ThemedText>
+
+          <TouchableOpacity
+            style={styles.setupButton}
+            onPress={handleGoToProfile}
+          >
+            <ThemedText
+              style={styles.setupButtonText}
+            >
+              Set Up AI Coach
+            </ThemedText>
+          </TouchableOpacity>
+        </ThemedView>
+      )}
 
       <TouchableOpacity
         style={styles.button}
@@ -354,7 +484,9 @@ export default function WorkoutScreen() {
                   }}
                 >
                   <ThemedText
-                    style={styles.demoButtonText}
+                    style={
+                      styles.demoButtonText
+                    }
                   >
                     ▶ Watch Demo
                   </ThemedText>
@@ -420,6 +552,7 @@ function formatTime(seconds: number): string {
     .toString()
     .padStart(2, '0')}`;
 }
+
 const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 20,
@@ -427,10 +560,6 @@ const styles = StyleSheet.create({
     paddingBottom: 50,
     gap: 12,
   },
-
-  /* ================================================================
-     PRIMARY GENERATE BUTTON
-  ================================================================ */
 
   button: {
     backgroundColor: '#F28C18',
@@ -447,30 +576,76 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '800',
   },
+
   brand: {
-  color: '#F28C18',
-  fontSize: 13,
-  fontWeight: '900',
-  letterSpacing: 3.5,
-  marginBottom: 9,
-},
+    color: '#F28C18',
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 3.5,
+    marginBottom: 9,
+  },
 
-pageTitle: {
-  fontSize: 30,
-  lineHeight: 36,
-  fontWeight: '800',
-},
+  pageTitle: {
+    fontSize: 30,
+    lineHeight: 36,
+    fontWeight: '800',
+  },
 
-pageSubtitle: {
-  fontSize: 15,
-  lineHeight: 21,
-  opacity: 0.58,
-  marginBottom: 8,
-},
+  pageSubtitle: {
+    fontSize: 15,
+    lineHeight: 21,
+    opacity: 0.58,
+    marginBottom: 8,
+  },
 
-  /* ================================================================
-     START SESSION
-  ================================================================ */
+  /*
+   * ================================================================
+   * SETUP / EMPTY STATE
+   * ================================================================
+   */
+
+  setupCard: {
+    marginTop: 10,
+    padding: 18,
+    borderRadius: 17,
+    backgroundColor: '#17130D',
+    borderWidth: 1,
+    borderColor: '#3A2B17',
+    gap: 8,
+  },
+
+  setupTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+  },
+
+  setupText: {
+    fontSize: 14,
+    lineHeight: 21,
+    opacity: 0.72,
+  },
+
+  setupButton: {
+    backgroundColor: '#F28C18',
+    borderRadius: 12,
+    minHeight: 48,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+  },
+
+  setupButtonText: {
+    color: '#080808',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+
+  /*
+   * ================================================================
+   * START SESSION
+   * ================================================================
+   */
 
   startSessionButton: {
     backgroundColor: '#F28C18',
@@ -482,9 +657,11 @@ pageSubtitle: {
     marginTop: 16,
   },
 
-  /* ================================================================
-     SECTION HEADINGS
-  ================================================================ */
+  /*
+   * ================================================================
+   * SECTION HEADINGS
+   * ================================================================
+   */
 
   sectionTitle: {
     marginTop: 24,
@@ -494,9 +671,11 @@ pageSubtitle: {
     fontWeight: '800',
   },
 
-  /* ================================================================
-     EXERCISE CARDS
-  ================================================================ */
+  /*
+   * ================================================================
+   * EXERCISE CARDS
+   * ================================================================
+   */
 
   exerciseCard: {
     padding: 17,
@@ -528,21 +707,19 @@ pageSubtitle: {
     opacity: 0.62,
   },
 
-  /* ================================================================
-     WATCH DEMO
-  ================================================================ */
+  /*
+   * ================================================================
+   * WATCH DEMO
+   * ================================================================
+   */
 
   demoButton: {
     marginTop: 10,
     alignSelf: 'flex-start',
-
     borderWidth: 1,
     borderColor: '#3A3A3A',
-
     backgroundColor: '#101010',
-
     borderRadius: 10,
-
     paddingVertical: 8,
     paddingHorizontal: 13,
   },
@@ -553,22 +730,19 @@ pageSubtitle: {
     fontWeight: '700',
   },
 
-  /* ================================================================
-     WARM-UP
-  ================================================================ */
+  /*
+   * ================================================================
+   * WARM-UP
+   * ================================================================
+   */
 
   warmupCard: {
     marginTop: 16,
-
     padding: 17,
-
     borderRadius: 17,
-
     backgroundColor: '#17130D',
-
     borderWidth: 1,
     borderColor: '#3A2B17',
-
     gap: 6,
   },
 
@@ -578,43 +752,36 @@ pageSubtitle: {
     opacity: 0.72,
   },
 
-  /* ================================================================
-     COOL-DOWN
-  ================================================================ */
+  /*
+   * ================================================================
+   * COOL-DOWN
+   * ================================================================
+   */
 
   cooldownCard: {
     marginTop: 8,
-
     padding: 17,
-
     borderRadius: 17,
-
     backgroundColor: '#111416',
-
     borderWidth: 1,
     borderColor: '#292929',
-
     gap: 6,
   },
 
-  /* ================================================================
-     MARK AS DONE
-  ================================================================ */
+  /*
+   * ================================================================
+   * MARK AS DONE
+   * ================================================================
+   */
 
   doneButton: {
     backgroundColor: '#F28C18',
-
     borderRadius: 14,
-
     minHeight: 58,
-
     paddingHorizontal: 16,
-
     alignItems: 'center',
     justifyContent: 'center',
-
     marginTop: 18,
-
     marginBottom: 10,
   },
 
