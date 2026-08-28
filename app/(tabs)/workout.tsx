@@ -226,9 +226,17 @@ export default function WorkoutScreen() {
       contentContainerStyle={styles.container}
       showsVerticalScrollIndicator={false}
     >
-      <ThemedText type="title">
-        Workout
-      </ThemedText>
+      <ThemedText style={styles.brand}>
+  BHEEMAI
+</ThemedText>
+
+<ThemedText type="title" style={styles.pageTitle}>
+  Today's Workout
+</ThemedText>
+
+<ThemedText style={styles.pageSubtitle}>
+  Your workout adapts to your goals, recovery and recent training.
+</ThemedText>
 
       <TouchableOpacity
         style={styles.button}
@@ -412,110 +420,205 @@ function formatTime(seconds: number): string {
     .toString()
     .padStart(2, '0')}`;
 }
-
 const styles = StyleSheet.create({
   container: {
-    padding: 20,
-    paddingBottom: 40,
+    paddingHorizontal: 20,
+    paddingTop: 54,
+    paddingBottom: 50,
     gap: 12,
   },
 
+  /* ================================================================
+     PRIMARY GENERATE BUTTON
+  ================================================================ */
+
   button: {
-    backgroundColor: '#1D8CF8',
-    borderRadius: 8,
-    paddingVertical: 14,
+    backgroundColor: '#F28C18',
+    borderRadius: 14,
+    minHeight: 58,
+    paddingHorizontal: 16,
     alignItems: 'center',
-    marginTop: 16,
+    justifyContent: 'center',
+    marginTop: 18,
   },
 
   buttonText: {
-    color: '#fff',
+    color: '#080808',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '800',
   },
+  brand: {
+  color: '#F28C18',
+  fontSize: 13,
+  fontWeight: '900',
+  letterSpacing: 3.5,
+  marginBottom: 9,
+},
+
+pageTitle: {
+  fontSize: 30,
+  lineHeight: 36,
+  fontWeight: '800',
+},
+
+pageSubtitle: {
+  fontSize: 15,
+  lineHeight: 21,
+  opacity: 0.58,
+  marginBottom: 8,
+},
+
+  /* ================================================================
+     START SESSION
+  ================================================================ */
 
   startSessionButton: {
-    backgroundColor: '#22A559',
-    borderRadius: 8,
-    paddingVertical: 14,
+    backgroundColor: '#F28C18',
+    borderRadius: 14,
+    minHeight: 58,
+    paddingHorizontal: 16,
     alignItems: 'center',
-    marginTop: 12,
+    justifyContent: 'center',
+    marginTop: 16,
   },
+
+  /* ================================================================
+     SECTION HEADINGS
+  ================================================================ */
 
   sectionTitle: {
-    marginTop: 18,
-    marginBottom: 4,
+    marginTop: 24,
+    marginBottom: 7,
+    fontSize: 20,
+    lineHeight: 25,
+    fontWeight: '800',
   },
 
+  /* ================================================================
+     EXERCISE CARDS
+  ================================================================ */
+
   exerciseCard: {
-    padding: 14,
-    borderRadius: 8,
+    padding: 17,
+    borderRadius: 17,
     borderWidth: 1,
-    borderColor: '#444',
-    gap: 4,
+    borderColor: '#292929',
+    backgroundColor: '#151515',
+    gap: 6,
   },
 
   exerciseDetail: {
+    fontSize: 14,
     opacity: 0.85,
+    marginTop: 2,
   },
 
   exerciseFocus: {
-    opacity: 0.6,
-    fontSize: 13,
+    color: '#F28C18',
+    fontSize: 12,
+    fontWeight: '700',
+    opacity: 0.9,
+    marginTop: 1,
   },
 
   exerciseDescription: {
-    marginTop: 4,
+    marginTop: 5,
     fontSize: 13,
-    opacity: 0.9,
+    lineHeight: 19,
+    opacity: 0.62,
   },
 
+  /* ================================================================
+     WATCH DEMO
+  ================================================================ */
+
   demoButton: {
-    marginTop: 8,
+    marginTop: 10,
     alignSelf: 'flex-start',
+
     borderWidth: 1,
-    borderColor: '#1D8CF8',
-    borderRadius: 6,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
+    borderColor: '#3A3A3A',
+
+    backgroundColor: '#101010',
+
+    borderRadius: 10,
+
+    paddingVertical: 8,
+    paddingHorizontal: 13,
   },
 
   demoButtonText: {
-    color: '#1D8CF8',
+    color: '#F28C18',
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '700',
   },
+
+  /* ================================================================
+     WARM-UP
+  ================================================================ */
 
   warmupCard: {
     marginTop: 16,
-    padding: 14,
-    borderRadius: 8,
-    backgroundColor: '#2a2410',
-    gap: 4,
-  },
 
-  cooldownCard: {
-    marginTop: 4,
-    padding: 14,
-    borderRadius: 8,
-    backgroundColor: '#10202a',
-    gap: 4,
+    padding: 17,
+
+    borderRadius: 17,
+
+    backgroundColor: '#17130D',
+
+    borderWidth: 1,
+    borderColor: '#3A2B17',
+
+    gap: 6,
   },
 
   warmupItem: {
     fontSize: 13,
-    opacity: 0.9,
+    lineHeight: 19,
+    opacity: 0.72,
   },
 
+  /* ================================================================
+     COOL-DOWN
+  ================================================================ */
+
+  cooldownCard: {
+    marginTop: 8,
+
+    padding: 17,
+
+    borderRadius: 17,
+
+    backgroundColor: '#111416',
+
+    borderWidth: 1,
+    borderColor: '#292929',
+
+    gap: 6,
+  },
+
+  /* ================================================================
+     MARK AS DONE
+  ================================================================ */
+
   doneButton: {
-    backgroundColor: '#22A559',
-    borderRadius: 8,
-    paddingVertical: 14,
+    backgroundColor: '#F28C18',
+
+    borderRadius: 14,
+
+    minHeight: 58,
+
+    paddingHorizontal: 16,
+
     alignItems: 'center',
-    marginTop: 12,
+    justifyContent: 'center',
+
+    marginTop: 18,
+
+    marginBottom: 10,
   },
 
   doneButtonSaved: {
-    backgroundColor: '#2b6b45',
+    backgroundColor: '#343434',
   },
 });

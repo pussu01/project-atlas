@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
-  Animated,
-  Easing,
+  Linking,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -10,8 +9,11 @@ import {
   View,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import { Audio } from 'expo-av';
 import { ThemedText } from '@/components/themed-text';
 import { WorkoutPlan } from '@/services/gemini';
+
+const WHISTLE_SOUND = require('@/assets/sounds/whistle.mp3');
 
 type Props = {
   workout: WorkoutPlan;
@@ -54,85 +56,6 @@ function safeHaptic(callback: () => Promise<any>) {
   callback().catch(() => {});
 }
 
-/**
- * Generic local animation.
- *
- * This deliberately does NOT attempt to show the exact exercise.
- * It is a lightweight movement indicator that works for every exercise
- * without Gemini, internet, image libraries, or licensing dependencies.
- */
-function GenericExerciseAnimation() {
-  const movement = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    const animation = Animated.loop(
-      Animated.sequence([
-        Animated.timing(movement, {
-          toValue: 1,
-          duration: 850,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.timing(movement, {
-          toValue: 0,
-          duration: 850,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-      ])
-    );
-
-    animation.start();
-
-    return () => {
-      animation.stop();
-    };
-  }, [movement]);
-
-  const translateY = movement.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, -10],
-  });
-
-  const scale = movement.interpolate({
-    inputRange: [0, 1],
-    outputRange: [1, 0.96],
-  });
-
-  return (
-    <View style={styles.animationBox}>
-      <Animated.View
-        style={[
-          styles.figure,
-          {
-            transform: [{ translateY }, { scaleY: scale }],
-          },
-        ]}
-      >
-        <View style={styles.head} />
-
-        <View style={styles.body} />
-
-        <View style={[styles.arm, styles.leftArm]} />
-        <View style={[styles.arm, styles.rightArm]} />
-
-        <View style={[styles.leg, styles.leftLeg]} />
-        <View style={[styles.leg, styles.rightLeg]} />
-      </Animated.View>
-
-      <View style={styles.motionDots}>
-        <View style={styles.motionDot} />
-        <View style={[styles.motionDot, styles.motionDotMiddle]} />
-        <View style={[styles.motionDot, styles.motionDotRight]} />
-      </View>
-
-      <ThemedText style={styles.animationText}>
-        Movement guide
-      </ThemedText>
-    </View>
-  );
-}
-
 export default function WorkoutSession({
   workout,
   onExit,
@@ -172,15 +95,150 @@ export default function WorkoutSession({
   const activeSecondsRef = useRef(0);
   const restSecondsRef = useRef(0);
 
+  // Reusable local whistle sound for exercise transitions.
+  const whistleRef = useRef<Audio.Sound | null>(null);
+
+  // Used to distinguish "new exercise" from "next set of the same exercise".
+  const whistledExerciseIndex = useRef<number | null>(null);
+
   const currentExercise =
     exercises[currentExerciseIndex];
 
   const totalExercises = exercises.length;
 
+  useEffect(() => {
+    if (phase !== 'exercise') {
+      whistledExerciseIndex.current = null;
+    }
+  }, [phase]);
+
   const totalSetsForExercise =
     Number(currentExercise?.sets) > 0
       ? Number(currentExercise?.sets)
       : 1;
+
+  /**
+   * ------------------------------------------------------------
+   * WHISTLE AUDIO
+   * ------------------------------------------------------------
+   *
+   * Whistle plays when an exercise starts and when its final set
+   * is completed. iOS silent mode is explicitly supported.
+   */
+  useEffect(() => {
+    let mounted = true;
+
+    const prepareWhistle = async () => {
+      try {
+        await Audio.setAudioModeAsync({
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: false,
+        });
+
+        const { sound } = await Audio.Sound.createAsync(
+          WHISTLE_SOUND,
+          {
+            shouldPlay: false,
+            volume: 1.0,
+          }
+        );
+
+        if (mounted) {
+          whistleRef.current = sound;
+        } else {
+          await sound.unloadAsync();
+        }
+      } catch {
+        // Audio failure must never break the workout session.
+      }
+    };
+
+    prepareWhistle();
+
+    return () => {
+      mounted = false;
+
+      const sound = whistleRef.current;
+      whistleRef.current = null;
+
+      if (sound) {
+        sound.unloadAsync().catch(() => {});
+      }
+    };
+  }, []);
+
+  const playWhistle = async () => {
+    try {
+      const sound = whistleRef.current;
+
+      if (!sound) {
+        return;
+      }
+
+      await sound.replayAsync();
+    } catch {
+      // Audio failure must never break the workout session.
+    }
+  };
+
+  // Start/change cue for exercises only.
+  //
+  // Important: returning from REST for Set 2/3/4 of the same exercise does
+  // NOT whistle. A whistle is reserved for the beginning of an exercise.
+  useEffect(() => {
+    if (
+      phase !== 'exercise' ||
+      completed ||
+      exercises.length === 0 ||
+      whistledExerciseIndex.current === currentExerciseIndex
+    ) {
+      return;
+    }
+
+    whistledExerciseIndex.current = currentExerciseIndex;
+
+    const timer = setTimeout(() => {
+      playWhistle();
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [phase, currentExerciseIndex, completed, exercises.length]);
+
+  // Warm-up: whistle at the beginning of the first warm-up movement and
+  // whenever the warm-up movement changes.
+  useEffect(() => {
+    if (
+      phase !== 'warmup' ||
+      completed ||
+      warmup.length === 0
+    ) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      playWhistle();
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [phase, warmupIndex, completed, warmup.length]);
+
+  // Cool-down: whistle at the beginning of the first cool-down movement and
+  // whenever the cool-down movement changes.
+  useEffect(() => {
+    if (
+      phase !== 'cooldown' ||
+      completed ||
+      cooldown.length === 0
+    ) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      playWhistle();
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [phase, cooldownIndex, completed, cooldown.length]);
 
   /**
    * ------------------------------------------------------------
@@ -290,6 +348,7 @@ export default function WorkoutSession({
         )
       );
 
+      // The new warm-up movement emits its own change whistle.
       setWarmupIndex(nextIndex);
       return;
     }
@@ -300,6 +359,7 @@ export default function WorkoutSession({
       )
     );
 
+    // The first main exercise emits its own start whistle.
     setCurrentExerciseIndex(0);
     setCurrentSet(1);
     setPhase('exercise');
@@ -416,29 +476,18 @@ export default function WorkoutSession({
       )
     );
 
-    if (currentSet < totalSetsForExercise) {
-      setRestRemaining(REST_BETWEEN_SETS);
-      setPhase('rest');
-      return;
+    const finalSetOfExercise =
+      currentSet >= totalSetsForExercise;
+
+    // The final set is the end of the exercise, so emit the end cue now.
+    // There is STILL a rest period after this set.
+    if (finalSetOfExercise) {
+      playWhistle();
     }
 
-    const nextExerciseIndex =
-      currentExerciseIndex + 1;
-
-    if (nextExerciseIndex < totalExercises) {
-      setCurrentExerciseIndex(nextExerciseIndex);
-      setCurrentSet(1);
-      setPhase('exercise');
-      return;
-    }
-
-    if (cooldown.length > 0) {
-      setCooldownIndex(0);
-      setPhase('cooldown');
-      return;
-    }
-
-    finishWorkout();
+    // Every set — including the final set — enters REST.
+    setRestRemaining(REST_BETWEEN_SETS);
+    setPhase('rest');
   };
 
   /**
@@ -453,8 +502,33 @@ export default function WorkoutSession({
       )
     );
 
-    setCurrentSet((value) => value + 1);
-    setPhase('exercise');
+    if (currentSet < totalSetsForExercise) {
+      // Same exercise, next set. No exercise-change whistle.
+      setCurrentSet((value) => value + 1);
+      setPhase('exercise');
+      return;
+    }
+
+    // Final-set rest has finished. Move to the next exercise, or to
+    // cooldown, or finish the session.
+    const nextExerciseIndex = currentExerciseIndex + 1;
+
+    if (nextExerciseIndex < totalExercises) {
+      setCurrentExerciseIndex(nextExerciseIndex);
+      setCurrentSet(1);
+      setPhase('exercise');
+      // The exercise-start effect emits the next whistle.
+      return;
+    }
+
+    if (cooldown.length > 0) {
+      setCooldownIndex(0);
+      setPhase('cooldown');
+      // The cooldown-start effect emits the change whistle.
+      return;
+    }
+
+    finishWorkout();
   };
 
   /**
@@ -478,6 +552,12 @@ export default function WorkoutSession({
    * ------------------------------------------------------------
    */
   const handleSkipCooldown = () => {
+    safeHaptic(() =>
+      Haptics.impactAsync(
+        Haptics.ImpactFeedbackStyle.Light
+      )
+    );
+
     const nextIndex = cooldownIndex + 1;
 
     if (nextIndex < cooldown.length) {
@@ -1049,8 +1129,105 @@ export default function WorkoutSession({
             {currentExercise?.reps ?? 0} reps
           </ThemedText>
 
-          <GenericExerciseAnimation />
+          <View style={styles.exerciseGuideCard}>
 
+            <View style={styles.exerciseGuideAccent} />
+
+
+            <View style={styles.exerciseGuideContent}>
+
+              <ThemedText style={styles.exerciseGuideEyebrow}>
+
+                FORM GUIDE
+
+              </ThemedText>
+
+
+              <ThemedText
+
+                style={styles.exerciseGuideTitle}
+
+                numberOfLines={2}
+
+              >
+
+                {currentExercise?.name || 'Exercise'}
+
+              </ThemedText>
+
+
+              {!!currentExercise?.focus && (
+
+                <ThemedText style={styles.exerciseGuideFocus}>
+
+                  {currentExercise.focus}
+
+                </ThemedText>
+
+              )}
+
+
+              {!!currentExercise?.description && (
+
+                <ThemedText
+
+                  style={styles.exerciseGuideDescription}
+
+                  numberOfLines={3}
+
+                >
+
+                  {currentExercise.description}
+
+                </ThemedText>
+
+              )}
+
+
+              <TouchableOpacity
+
+                style={styles.demoButton}
+
+                onPress={() => {
+
+                  const url =
+
+                    `https://www.youtube.com/results?search_query=` +
+
+                    encodeURIComponent(
+
+                      `${currentExercise?.name || 'exercise'} proper form`
+
+                    );
+
+
+                  Linking.openURL(url).catch(() => {
+
+                    Alert.alert(
+
+                      'Unable to open YouTube',
+
+                      'Please try again.'
+
+                    );
+
+                  });
+
+                }}
+
+              >
+
+                <ThemedText style={styles.demoButtonText}>
+
+                  ▶  Watch Proper Form
+
+                </ThemedText>
+
+              </TouchableOpacity>
+
+            </View>
+
+          </View>
           <View style={styles.exerciseTimerCircle}>
             <ThemedText style={styles.exerciseTimerText}>
               {formatTime(totalSeconds)}
@@ -1093,7 +1270,7 @@ export default function WorkoutSession({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#151618',
+    backgroundColor: '#0B0B0B',
   },
 
   topStats: {
@@ -1101,9 +1278,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
-    paddingHorizontal: 18,
-    paddingTop: 8,
-    paddingBottom: 8,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 10,
   },
 
   stat: {
@@ -1113,8 +1290,9 @@ const styles = StyleSheet.create({
 
   statLabel: {
     fontSize: 11,
-    letterSpacing: 1.4,
-    opacity: 0.5,
+    letterSpacing: 1.6,
+    fontWeight: '600',
+    opacity: 0.45,
     marginBottom: 3,
   },
 
@@ -1130,7 +1308,9 @@ const styles = StyleSheet.create({
 
   exitText: {
     fontSize: 16,
-    opacity: 0.65,
+    color: '#F28C18',
+    opacity: 0.9,
+    fontWeight: '600',
   },
 
   mainScroll: {
@@ -1152,10 +1332,13 @@ const styles = StyleSheet.create({
   },
 
   progress: {
-    fontSize: 16,
-    opacity: 0.6,
+    fontSize: 15,
+    color: '#F28C18',
+    fontWeight: '700',
+    opacity: 0.95,
     marginBottom: 8,
     textAlign: 'center',
+    letterSpacing: 0.3,
   },
 
   exerciseTitle: {
@@ -1163,21 +1346,22 @@ const styles = StyleSheet.create({
     fontSize: 31,
     lineHeight: 35,
     textAlign: 'center',
-    marginBottom: 10,
+    marginBottom: 8,
     paddingHorizontal: 8,
+    fontWeight: '800',
   },
 
   setText: {
     fontSize: 23,
     fontWeight: '600',
-    marginBottom: 5,
+    marginBottom: 4,
     textAlign: 'center',
   },
 
   repsText: {
-    fontSize: 19,
-    opacity: 0.7,
-    marginBottom: 14,
+    fontSize: 18,
+    opacity: 0.62,
+    marginBottom: 16,
   },
 
   nextExercise: {
@@ -1193,11 +1377,82 @@ const styles = StyleSheet.create({
     height: 190,
     borderRadius: 95,
     borderWidth: 7,
-    borderColor: '#E5A300',
+    borderColor: '#F28C18',
+    backgroundColor: '#121212',
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 8,
     marginBottom: 22,
+  },
+
+  exerciseGuideCard: {
+    width: '100%',
+    minHeight: 190,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#333333',
+    backgroundColor: '#151515',
+    marginBottom: 18,
+    overflow: 'hidden',
+    flexDirection: 'row',
+  },
+
+  exerciseGuideAccent: {
+    width: 5,
+    backgroundColor: '#F28C18',
+  },
+
+  exerciseGuideContent: {
+    flex: 1,
+    paddingHorizontal: 18,
+    paddingVertical: 17,
+  },
+
+  exerciseGuideEyebrow: {
+    color: '#F28C18',
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 1.8,
+    marginBottom: 7,
+  },
+
+  exerciseGuideTitle: {
+    fontSize: 20,
+    lineHeight: 25,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+
+  exerciseGuideFocus: {
+    color: '#F28C18',
+    fontSize: 13,
+    fontWeight: '700',
+    opacity: 0.9,
+    marginBottom: 5,
+  },
+
+  exerciseGuideDescription: {
+    fontSize: 13,
+    lineHeight: 19,
+    opacity: 0.62,
+    marginBottom: 8,
+  },
+
+  demoButton: {
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: '#F28C18',
+    backgroundColor: '#21170C',
+    borderRadius: 10,
+    paddingVertical: 9,
+    paddingHorizontal: 13,
+    marginTop: 3,
+  },
+
+  demoButtonText: {
+    color: '#F28C18',
+    fontSize: 13,
+    fontWeight: '800',
   },
 
   exerciseTimerCircle: {
@@ -1205,7 +1460,8 @@ const styles = StyleSheet.create({
     height: 175,
     borderRadius: 88,
     borderWidth: 7,
-    borderColor: '#1D8CF8',
+    borderColor: '#F28C18',
+    backgroundColor: '#121212',
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 4,
@@ -1234,7 +1490,7 @@ const styles = StyleSheet.create({
 
   primaryButton: {
     width: '88%',
-    backgroundColor: '#1D8CF8',
+    backgroundColor: '#F28C18',
     borderRadius: 14,
     paddingVertical: 16,
     alignItems: 'center',
@@ -1242,15 +1498,16 @@ const styles = StyleSheet.create({
   },
 
   primaryButtonText: {
-    color: '#fff',
+    color: '#080808',
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '800',
   },
 
   pauseButton: {
     minWidth: 150,
     borderWidth: 1,
-    borderColor: '#666',
+    borderColor: '#454545',
+    backgroundColor: '#151515',
     borderRadius: 10,
     paddingVertical: 11,
     paddingHorizontal: 28,
@@ -1258,6 +1515,7 @@ const styles = StyleSheet.create({
   },
 
   pauseButtonText: {
+    color: '#F2F2F2',
     fontSize: 17,
     fontWeight: '600',
   },
@@ -1268,122 +1526,17 @@ const styles = StyleSheet.create({
   },
 
   skipText: {
+    color: '#F28C18',
     fontSize: 17,
-    opacity: 0.55,
+    opacity: 0.8,
     textAlign: 'center',
+    fontWeight: '600',
   },
 
   pausedText: {
     marginTop: 12,
     fontSize: 14,
     opacity: 0.55,
-  },
-
-  animationBox: {
-    width: '88%',
-    height: 150,
-    borderWidth: 1,
-    borderColor: '#3d3f42',
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-    position: 'relative',
-    overflow: 'hidden',
-  },
-
-  figure: {
-    width: 80,
-    height: 105,
-    alignItems: 'center',
-    position: 'relative',
-  },
-
-  head: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: '#e9e9e9',
-    position: 'absolute',
-    top: 2,
-  },
-
-  body: {
-    width: 5,
-    height: 42,
-    borderRadius: 3,
-    backgroundColor: '#e9e9e9',
-    position: 'absolute',
-    top: 25,
-  },
-
-  arm: {
-    position: 'absolute',
-    width: 4,
-    height: 38,
-    borderRadius: 2,
-    backgroundColor: '#e9e9e9',
-    top: 28,
-  },
-
-  leftArm: {
-    left: 21,
-    transform: [{ rotate: '28deg' }],
-  },
-
-  rightArm: {
-    right: 21,
-    transform: [{ rotate: '-28deg' }],
-  },
-
-  leg: {
-    position: 'absolute',
-    width: 5,
-    height: 43,
-    borderRadius: 3,
-    backgroundColor: '#e9e9e9',
-    top: 64,
-  },
-
-  leftLeg: {
-    left: 31,
-    transform: [{ rotate: '13deg' }],
-  },
-
-  rightLeg: {
-    right: 31,
-    transform: [{ rotate: '-13deg' }],
-  },
-
-  motionDots: {
-    position: 'absolute',
-    bottom: 22,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-
-  motionDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: '#1D8CF8',
-    opacity: 0.35,
-    marginHorizontal: 4,
-  },
-
-  motionDotMiddle: {
-    opacity: 0.55,
-  },
-
-  motionDotRight: {
-    opacity: 0.8,
-  },
-
-  animationText: {
-    position: 'absolute',
-    bottom: 7,
-    fontSize: 12,
-    opacity: 0.45,
   },
 
   completeScroll: {
@@ -1401,6 +1554,7 @@ const styles = StyleSheet.create({
   completeTitle: {
     textAlign: 'center',
     marginBottom: 10,
+    fontWeight: '800',
   },
 
   completeSubtitle: {
@@ -1411,44 +1565,46 @@ const styles = StyleSheet.create({
   },
 
   calorieCard: {
-  width: '100%',
-  minHeight: 145,
-  borderRadius: 16,
-  borderWidth: 1,
-  borderColor: '#2f7d4a',
-  backgroundColor: '#10261a',
-  alignItems: 'center',
-  justifyContent: 'center',
-  paddingVertical: 18,
-  marginBottom: 16,
-},
+    width: '100%',
+    minHeight: 145,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#F28C18',
+    backgroundColor: '#21170C',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 18,
+    marginBottom: 16,
+  },
 
-calorieNumberContainer: {
-  minHeight: 58,
-  alignItems: 'center',
-  justifyContent: 'center',
-  paddingHorizontal: 10,
-},
+  calorieNumberContainer: {
+    minHeight: 58,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+  },
 
-calorieNumber: {
-  fontSize: 42,
-  lineHeight: 52,
-  fontWeight: '700',
-  textAlign: 'center',
-},
+  calorieNumber: {
+    color: '#F28C18',
+    fontSize: 42,
+    lineHeight: 52,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
 
-calorieLabel: {
-  fontSize: 15,
-  lineHeight: 20,
-  opacity: 0.65,
-  marginTop: 4,
-  textAlign: 'center',
-},
+  calorieLabel: {
+    fontSize: 15,
+    lineHeight: 20,
+    opacity: 0.65,
+    marginTop: 4,
+    textAlign: 'center',
+  },
 
   summaryCard: {
     width: '100%',
     borderWidth: 1,
-    borderColor: '#444',
+    borderColor: '#303030',
+    backgroundColor: '#151515',
     borderRadius: 14,
     padding: 18,
     marginBottom: 22,
@@ -1473,15 +1629,15 @@ calorieLabel: {
 
   finishButton: {
     width: '90%',
-    backgroundColor: '#22A559',
+    backgroundColor: '#F28C18',
     borderRadius: 14,
     paddingVertical: 17,
     alignItems: 'center',
   },
 
   finishButtonText: {
-    color: '#fff',
+    color: '#080808',
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '800',
   },
 });
