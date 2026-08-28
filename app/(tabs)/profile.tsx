@@ -390,9 +390,7 @@ export default function ProfileScreen() {
             </ThemedView>
           )}
         </ThemedView>
-        <Link href="/pose-test" style={{ marginTop: 20, alignSelf: 'center' }}>
-  <ThemedText style={{ color: '#888', fontSize: 12 }}>[Dev] Pose Test Screen →</ThemedText>
-</Link>
+        
 
         <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
           <ThemedText style={styles.saveButtonText}>Save Profile</ThemedText>
