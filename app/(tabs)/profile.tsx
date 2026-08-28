@@ -1,552 +1,1764 @@
 import { useState, useEffect } from 'react';
-import { StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, KeyboardAvoidingView, Platform } from 'react-native';
+import {
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  View,
+  ActivityIndicator,
+} from 'react-native';
+
 import * as WebBrowser from 'expo-web-browser';
 import * as SQLite from 'expo-sqlite';
+
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { getGeminiApiKey, saveGeminiApiKey, deleteGeminiApiKey, hasGeminiApiKey } from '@/services/gemini-key';
-import { testGeminiConnection } from '@/services/gemini';
-import { Link } from 'expo-router';
 
-const GOALS = ['Lose Weight', 'Build Muscle', 'Stay Fit', 'Improve Endurance'];
-const EQUIPMENT = ['None / Bodyweight', 'Dumbbells', 'Full Gym'];
-const TIME_OPTIONS = ['15 min', '30 min', '45 min', '60+ min'];
-const SEX_OPTIONS = ['Male', 'Female', 'Prefer not to say'];
-const FITNESS_LEVELS = ['Beginner', 'Intermediate', 'Advanced'];
+import {
+  getGeminiApiKey,
+  saveGeminiApiKey,
+  deleteGeminiApiKey,
+  hasGeminiApiKey,
+} from '@/services/gemini-key';
+
+import { testGeminiConnection } from '@/services/gemini';
+
+const ORANGE = '#F28C18';
+const BACKGROUND = '#080808';
+const CARD = '#151515';
+const BORDER = '#292929';
+const MUTED = '#888888';
+const RED = '#E5484D';
+const GREEN = '#22A559';
+
+const GOALS = [
+  'Lose Weight',
+  'Build Muscle',
+  'Stay Fit',
+  'Improve Endurance',
+];
+
+const EQUIPMENT = [
+  'None / Bodyweight',
+  'Dumbbells',
+  'Full Gym',
+];
+
+const TIME_OPTIONS = [
+  '15 min',
+  '30 min',
+  '45 min',
+  '60+ min',
+];
+
+const SEX_OPTIONS = [
+  'Male',
+  'Female',
+  'Prefer not to say',
+];
+
+const FITNESS_LEVELS = [
+  'Beginner',
+  'Intermediate',
+  'Advanced',
+];
 
 export default function ProfileScreen() {
   const [name, setName] = useState('');
   const [selectedGoal, setSelectedGoal] = useState('');
-  const [selectedEquipment, setSelectedEquipment] = useState<string[]>([]);
+  const [selectedEquipment, setSelectedEquipment] =
+    useState<string[]>([]);
   const [selectedTime, setSelectedTime] = useState('');
   const [age, setAge] = useState('');
   const [selectedSex, setSelectedSex] = useState('');
   const [heightCm, setHeightCm] = useState('');
-  const [selectedFitnessLevel, setSelectedFitnessLevel] = useState('');
-  const [exercisesToAvoid, setExercisesToAvoid] = useState('');
+  const [selectedFitnessLevel, setSelectedFitnessLevel] =
+    useState('');
+  const [exercisesToAvoid, setExercisesToAvoid] =
+    useState('');
+
   const [loading, setLoading] = useState(true);
-  const [geminiConnected, setGeminiConnected] = useState(false);
-  const [showKeyInput, setShowKeyInput] = useState(false);
-  const [keyInputValue, setKeyInputValue] = useState('');
-  const [testingConnection, setTestingConnection] = useState(false);
+
+  const [geminiConnected, setGeminiConnected] =
+    useState(false);
+
+  const [showKeyInput, setShowKeyInput] =
+    useState(false);
+
+  const [keyInputValue, setKeyInputValue] =
+    useState('');
+
+  const [testingConnection, setTestingConnection] =
+    useState(false);
 
   useEffect(() => {
     setupAndLoad();
   }, []);
 
+  // =====================================================================
+  // LOAD PROFILE + GEMINI STATUS
+  // =====================================================================
+
   const setupAndLoad = async () => {
-    const db = await SQLite.openDatabaseAsync('atlas.db');
-    const row = await db.getFirstAsync<{
-      name: string;
-      goal: string;
-      equipment: string;
-      time_available: string;
-      age: number | null;
-      sex: string;
-      height_cm: number | null;
-      fitness_level: string;
-      exercises_to_avoid: string;
-    }>('SELECT * FROM profile WHERE id = 1');
+    try {
+      const db =
+        await SQLite.openDatabaseAsync('atlas.db');
 
-    if (row) {
-      setName(row.name || '');
-      setSelectedGoal(row.goal || '');
-      setSelectedEquipment(row.equipment ? row.equipment.split(',') : []);
-      setSelectedTime(row.time_available || '');
-      setAge(row.age != null ? String(row.age) : '');
-      setSelectedSex(row.sex || '');
-      setHeightCm(row.height_cm != null ? String(row.height_cm) : '');
-      setSelectedFitnessLevel(row.fitness_level || '');
-      setExercisesToAvoid(row.exercises_to_avoid || '');
+      const row =
+        await db.getFirstAsync<{
+          name: string | null;
+          goal: string | null;
+          equipment: string | null;
+          time_available: string | null;
+          age: number | null;
+          sex: string | null;
+          height_cm: number | null;
+          fitness_level: string | null;
+          exercises_to_avoid: string | null;
+        }>(
+          'SELECT * FROM profile WHERE id = 1'
+        );
+
+      if (row) {
+        setName(row.name || '');
+        setSelectedGoal(row.goal || '');
+
+        setSelectedEquipment(
+          row.equipment
+            ? row.equipment
+                .split(',')
+                .map((item) => item.trim())
+                .filter(Boolean)
+            : []
+        );
+
+        setSelectedTime(
+          row.time_available || ''
+        );
+
+        setAge(
+          row.age != null
+            ? String(row.age)
+            : ''
+        );
+
+        setSelectedSex(
+          row.sex || ''
+        );
+
+        setHeightCm(
+          row.height_cm != null
+            ? String(row.height_cm)
+            : ''
+        );
+
+        setSelectedFitnessLevel(
+          row.fitness_level || ''
+        );
+
+        setExercisesToAvoid(
+          row.exercises_to_avoid || ''
+        );
+      }
+
+      const keyExists =
+        await hasGeminiApiKey();
+
+      setGeminiConnected(keyExists);
+    } catch (error) {
+      console.error(
+        'Failed to load profile:',
+        error
+      );
+
+      Alert.alert(
+        'Unable to load profile',
+        'BheemAI could not load your profile from this device.'
+      );
+    } finally {
+      setLoading(false);
     }
-
-    const keyExists = await hasGeminiApiKey();
-    setGeminiConnected(keyExists);
-
-    setLoading(false);
   };
 
-  const toggleEquipment = (item: string) => {
-    if (selectedEquipment.includes(item)) {
-      setSelectedEquipment(selectedEquipment.filter((e) => e !== item));
+  // =====================================================================
+  // EQUIPMENT
+  // =====================================================================
+
+  const toggleEquipment = (
+    item: string
+  ) => {
+    if (
+      selectedEquipment.includes(item)
+    ) {
+      setSelectedEquipment(
+        selectedEquipment.filter(
+          (equipment) =>
+            equipment !== item
+        )
+      );
     } else {
-      setSelectedEquipment([...selectedEquipment, item]);
+      setSelectedEquipment([
+        ...selectedEquipment,
+        item,
+      ]);
     }
   };
+
+  // =====================================================================
+  // SAVE PROFILE
+  // =====================================================================
 
   const handleSave = async () => {
     if (!name.trim()) {
-      Alert.alert('Missing info', 'Please enter your name.');
-      return;
-    }
-    if (!selectedGoal) {
-      Alert.alert('Missing info', 'Please select a goal.');
+      Alert.alert(
+        'Missing information',
+        'Please enter your name.'
+      );
       return;
     }
 
-    let ageValue: number | null = null;
+    if (!selectedGoal) {
+      Alert.alert(
+        'Missing information',
+        'Please select your primary fitness goal.'
+      );
+      return;
+    }
+
+    let ageValue: number | null =
+      null;
+
     if (age.trim()) {
-      const parsed = parseInt(age.trim(), 10);
-      if (isNaN(parsed) || parsed < 10 || parsed > 100) {
-        Alert.alert('Invalid age', 'Please enter an age between 10 and 100.');
+      const parsed =
+        parseInt(age.trim(), 10);
+
+      if (
+        isNaN(parsed) ||
+        parsed < 10 ||
+        parsed > 100
+      ) {
+        Alert.alert(
+          'Invalid age',
+          'Please enter an age between 10 and 100.'
+        );
         return;
       }
+
       ageValue = parsed;
     }
 
-    let heightValue: number | null = null;
+    let heightValue:
+      | number
+      | null = null;
+
     if (heightCm.trim()) {
-      const parsed = parseFloat(heightCm.trim());
-      if (isNaN(parsed) || parsed < 50 || parsed > 250) {
-        Alert.alert('Invalid height', 'Please enter a height between 50 and 250 cm.');
+      const parsed =
+        parseFloat(heightCm.trim());
+
+      if (
+        isNaN(parsed) ||
+        parsed < 50 ||
+        parsed > 250
+      ) {
+        Alert.alert(
+          'Invalid height',
+          'Please enter a height between 50 and 250 cm.'
+        );
         return;
       }
+
       heightValue = parsed;
     }
 
-    const db = await SQLite.openDatabaseAsync('atlas.db');
-    await db.runAsync(
-      `INSERT INTO profile (id, name, goal, equipment, time_available, age, sex, height_cm, fitness_level, exercises_to_avoid)
-       VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT(id) DO UPDATE SET
-         name = ?,
-         goal = ?,
-         equipment = ?,
-         time_available = ?,
-         age = ?,
-         sex = ?,
-         height_cm = ?,
-         fitness_level = ?,
-         exercises_to_avoid = ?`,
-      [
-        name, selectedGoal, selectedEquipment.join(','), selectedTime,
-        ageValue, selectedSex, heightValue, selectedFitnessLevel, exercisesToAvoid,
-        name, selectedGoal, selectedEquipment.join(','), selectedTime,
-        ageValue, selectedSex, heightValue, selectedFitnessLevel, exercisesToAvoid,
-      ]
-    );
-    Alert.alert('Profile Saved', 'Your profile has been saved to the device.');
+    try {
+      const db =
+        await SQLite.openDatabaseAsync(
+          'atlas.db'
+        );
+
+      await db.runAsync(
+        `INSERT INTO profile (
+          id,
+          name,
+          goal,
+          equipment,
+          time_available,
+          age,
+          sex,
+          height_cm,
+          fitness_level,
+          exercises_to_avoid
+        )
+        VALUES (
+          1,
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          ?
+        )
+        ON CONFLICT(id) DO UPDATE SET
+          name = ?,
+          goal = ?,
+          equipment = ?,
+          time_available = ?,
+          age = ?,
+          sex = ?,
+          height_cm = ?,
+          fitness_level = ?,
+          exercises_to_avoid = ?`,
+        [
+          name.trim(),
+          selectedGoal,
+          selectedEquipment.join(','),
+          selectedTime,
+          ageValue,
+          selectedSex,
+          heightValue,
+          selectedFitnessLevel,
+          exercisesToAvoid.trim(),
+
+          name.trim(),
+          selectedGoal,
+          selectedEquipment.join(','),
+          selectedTime,
+          ageValue,
+          selectedSex,
+          heightValue,
+          selectedFitnessLevel,
+          exercisesToAvoid.trim(),
+        ]
+      );
+
+      Alert.alert(
+        'Profile saved',
+        'Your BheemAI training profile has been saved on this device.'
+      );
+    } catch (error: any) {
+      console.error(
+        'Failed to save profile:',
+        error
+      );
+
+      Alert.alert(
+        'Save failed',
+        error?.message ||
+          'BheemAI could not save your profile.'
+      );
+    }
   };
 
+  // =====================================================================
+  // SAVE GEMINI KEY
+  // =====================================================================
+
   const handleSaveKey = async () => {
-    if (!keyInputValue.trim()) {
-      Alert.alert('Missing key', 'Please enter a Gemini API key.');
+    const key =
+      keyInputValue.trim();
+
+    if (!key) {
+      Alert.alert(
+        'Missing API key',
+        'Please paste your Gemini API key.'
+      );
       return;
     }
-    await saveGeminiApiKey(keyInputValue);
-    setKeyInputValue('');
-    setShowKeyInput(false);
-    setGeminiConnected(true);
-    Alert.alert('Connected', 'Your Gemini API key has been saved.');
+
+    try {
+      await saveGeminiApiKey(key);
+
+      setKeyInputValue('');
+      setShowKeyInput(false);
+      setGeminiConnected(true);
+
+      Alert.alert(
+        'Gemini connected',
+        'Your Gemini API key has been securely saved on this device.'
+      );
+    } catch (error: any) {
+      console.error(
+        'Failed to save Gemini key:',
+        error
+      );
+
+      Alert.alert(
+        'Could not save key',
+        error?.message ||
+          'BheemAI could not save the Gemini API key.'
+      );
+    }
   };
+
+  // =====================================================================
+  // REMOVE GEMINI KEY
+  // =====================================================================
 
   const handleRemoveKey = () => {
     Alert.alert(
-      'Remove API Key',
-      'Are you sure you want to remove your Gemini API key? You will need to add it again to generate workouts.',
+      'Remove Gemini API key?',
+      'You will not be able to generate AI workouts until you add a key again.',
       [
-        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
         {
           text: 'Remove',
           style: 'destructive',
           onPress: async () => {
-            await deleteGeminiApiKey();
-            setGeminiConnected(false);
-            Alert.alert('Removed', 'Your Gemini API key has been removed.');
+            try {
+              await deleteGeminiApiKey();
+
+              setGeminiConnected(false);
+
+              Alert.alert(
+                'API key removed',
+                'Your Gemini API key has been removed from this device.'
+              );
+            } catch (error: any) {
+              Alert.alert(
+                'Could not remove key',
+                error?.message ||
+                  'Please try again.'
+              );
+            }
           },
         },
       ]
     );
   };
 
+  // =====================================================================
+  // TEST GEMINI CONNECTION
+  // =====================================================================
+
   const handleTestConnection = async () => {
     setTestingConnection(true);
+
     try {
-      const key = await getGeminiApiKey();
+      const key =
+        await getGeminiApiKey();
+
       if (!key) {
-        Alert.alert('No key found', 'Please add your Gemini API key first.');
+        Alert.alert(
+          'No API key',
+          'Please connect your Gemini API key first.'
+        );
         return;
       }
+
       await testGeminiConnection(key);
-      Alert.alert('Success', 'Your Gemini API key is working correctly.');
+
+      Alert.alert(
+        'Connection successful',
+        'Your Gemini API key is working correctly.'
+      );
     } catch (err: any) {
-      Alert.alert('Connection Failed', err.message || 'Could not connect using this key.');
+      Alert.alert(
+        'Connection failed',
+        err?.message ||
+          'BheemAI could not connect using this key.'
+      );
     } finally {
       setTestingConnection(false);
     }
   };
 
+  // =====================================================================
+  // LOADING
+  // =====================================================================
+
   if (loading) {
     return (
-      <ThemedView style={styles.container}>
-        <ThemedText>Loading...</ThemedText>
+      <ThemedView
+        style={styles.loadingContainer}
+      >
+        <ActivityIndicator
+          size="large"
+        />
+
+        <ThemedText
+          style={styles.loadingText}
+        >
+          Loading profile...
+        </ThemedText>
       </ThemedView>
     );
   }
 
+  // =====================================================================
+  // SCREEN
+  // =====================================================================
+
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={styles.container}>
-        <ThemedText type="title" style={styles.header}>Your Profile</ThemedText>
+      style={styles.screen}
+      behavior={
+        Platform.OS === 'ios'
+          ? 'padding'
+          : undefined
+      }
+    >
+      <ScrollView
+        showsVerticalScrollIndicator={
+          false
+        }
+        contentContainerStyle={
+          styles.container
+        }
+        keyboardShouldPersistTaps="handled"
+      >
 
-        {/* Name */}
-        <ThemedText type="subtitle" style={styles.label}>Name</ThemedText>
-        <TextInput
-          style={styles.input}
-          placeholder="Enter your name"
-          placeholderTextColor="#888"
-          value={name}
-          onChangeText={setName}
+        {/* ===============================================================
+            HEADER
+        =============================================================== */}
+
+        <View style={styles.header}>
+
+          <ThemedText style={styles.brand}>
+            BHEEMAI
+          </ThemedText>
+
+          <ThemedText
+            type="title"
+            style={styles.title}
+          >
+            Your Profile
+          </ThemedText>
+
+          <ThemedText
+            style={styles.subtitle}
+          >
+            Tell BheemAI how you train so your
+            workouts can adapt to you.
+          </ThemedText>
+
+        </View>
+
+
+        {/* ===============================================================
+            PERSONAL DETAILS
+        =============================================================== */}
+
+        <SectionHeader
+          eyebrow="ABOUT YOU"
+          title="Personal details"
         />
 
-        {/* Age */}
-        <ThemedText type="subtitle" style={styles.label}>Age</ThemedText>
-        <TextInput
-          style={styles.input}
-          placeholder="e.g. 32"
-          placeholderTextColor="#888"
-          value={age}
-          onChangeText={setAge}
-          keyboardType="number-pad"
-          maxLength={3}
+        <View style={styles.card}>
+
+          <FieldLabel label="Name" />
+
+          <TextInput
+            style={styles.input}
+            placeholder="Enter your name"
+            placeholderTextColor="#666"
+            value={name}
+            onChangeText={setName}
+            autoCapitalize="words"
+          />
+
+
+          <FieldLabel label="Age" />
+
+          <TextInput
+            style={styles.input}
+            placeholder="e.g. 32"
+            placeholderTextColor="#666"
+            value={age}
+            onChangeText={setAge}
+            keyboardType="number-pad"
+            maxLength={3}
+          />
+
+
+          <FieldLabel label="Sex" />
+
+          <View style={styles.optionsRow}>
+            {SEX_OPTIONS.map(
+              (option) => (
+                <OptionChip
+                  key={option}
+                  label={option}
+                  selected={
+                    selectedSex === option
+                  }
+                  onPress={() =>
+                    setSelectedSex(option)
+                  }
+                />
+              )
+            )}
+          </View>
+
+
+          <FieldLabel label="Height" />
+
+          <View style={styles.heightRow}>
+
+            <TextInput
+              style={[
+                styles.input,
+                styles.heightInput,
+              ]}
+              placeholder="e.g. 175"
+              placeholderTextColor="#666"
+              value={heightCm}
+              onChangeText={setHeightCm}
+              keyboardType="decimal-pad"
+              maxLength={5}
+            />
+
+            <View
+              style={styles.unitBox}
+            >
+              <ThemedText
+                style={styles.unitText}
+              >
+                cm
+              </ThemedText>
+            </View>
+
+          </View>
+
+        </View>
+
+
+        {/* ===============================================================
+            FITNESS
+        =============================================================== */}
+
+        <SectionHeader
+          eyebrow="TRAINING"
+          title="Fitness preferences"
         />
 
-        {/* Sex */}
-        <ThemedText type="subtitle" style={styles.label}>Sex</ThemedText>
-        <ThemedView style={styles.optionsRow}>
-          {SEX_OPTIONS.map((s) => (
-            <TouchableOpacity
-              key={s}
-              style={[styles.option, selectedSex === s && styles.optionSelected]}
-              onPress={() => setSelectedSex(s)}>
-              <ThemedText style={selectedSex === s ? styles.optionTextSelected : styles.optionText}>
-                {s}
-              </ThemedText>
-            </TouchableOpacity>
-          ))}
-        </ThemedView>
+        <View style={styles.card}>
 
-        {/* Height */}
-        <ThemedText type="subtitle" style={styles.label}>Height (cm)</ThemedText>
-        <TextInput
-          style={styles.input}
-          placeholder="e.g. 175"
-          placeholderTextColor="#888"
-          value={heightCm}
-          onChangeText={setHeightCm}
-          keyboardType="decimal-pad"
-          maxLength={5}
+          <FieldLabel label="Primary goal" />
+
+          <View style={styles.optionsRow}>
+            {GOALS.map(
+              (goal) => (
+                <OptionChip
+                  key={goal}
+                  label={goal}
+                  selected={
+                    selectedGoal === goal
+                  }
+                  onPress={() =>
+                    setSelectedGoal(goal)
+                  }
+                />
+              )
+            )}
+          </View>
+
+
+          <FieldLabel label="Fitness level" />
+
+          <View style={styles.optionsRow}>
+            {FITNESS_LEVELS.map(
+              (level) => (
+                <OptionChip
+                  key={level}
+                  label={level}
+                  selected={
+                    selectedFitnessLevel ===
+                    level
+                  }
+                  onPress={() =>
+                    setSelectedFitnessLevel(
+                      level
+                    )
+                  }
+                />
+              )
+            )}
+          </View>
+
+
+          <FieldLabel label="Time available today" />
+
+          <View style={styles.optionsRow}>
+            {TIME_OPTIONS.map(
+              (time) => (
+                <OptionChip
+                  key={time}
+                  label={time}
+                  selected={
+                    selectedTime === time
+                  }
+                  onPress={() =>
+                    setSelectedTime(time)
+                  }
+                />
+              )
+            )}
+          </View>
+
+        </View>
+
+
+        {/* ===============================================================
+            EQUIPMENT
+        =============================================================== */}
+
+        <SectionHeader
+          eyebrow="EQUIPMENT"
+          title="What can you train with?"
         />
 
-        {/* Fitness Level */}
-        <ThemedText type="subtitle" style={styles.label}>Fitness Level</ThemedText>
-        <ThemedView style={styles.optionsRow}>
-          {FITNESS_LEVELS.map((level) => (
+        <View style={styles.card}>
+
+          <ThemedText
+            style={styles.helperText}
+          >
+            Select everything you currently
+            have available.
+          </ThemedText>
+
+          <View style={styles.optionsRow}>
+            {EQUIPMENT.map(
+              (equipment) => (
+                <OptionChip
+                  key={equipment}
+                  label={equipment}
+                  selected={selectedEquipment.includes(
+                    equipment
+                  )}
+                  onPress={() =>
+                    toggleEquipment(
+                      equipment
+                    )
+                  }
+                />
+              )
+            )}
+          </View>
+
+        </View>
+
+
+        {/* ===============================================================
+            SPECIAL INSTRUCTIONS
+        =============================================================== */}
+
+        <SectionHeader
+          eyebrow="PERSONALIZATION"
+          title="Anything BheemAI should know?"
+        />
+
+        <View style={styles.card}>
+
+          <ThemedText
+            style={styles.helperText}
+          >
+            Add exercises to avoid, physical
+            limitations, preferences, or other
+            instructions you want your AI coach
+            to consider.
+          </ThemedText>
+
+          <TextInput
+            style={[
+              styles.input,
+              styles.textArea,
+            ]}
+            placeholder={
+              'Example: avoid jumping exercises, prefer dumbbells, keep workouts low impact...'
+            }
+            placeholderTextColor="#666"
+            value={exercisesToAvoid}
+            onChangeText={
+              setExercisesToAvoid
+            }
+            multiline
+            numberOfLines={5}
+            textAlignVertical="top"
+          />
+
+        </View>
+
+
+        {/* ===============================================================
+            GEMINI AI COACH
+        =============================================================== */}
+
+        <SectionHeader
+          eyebrow="AI COACH"
+          title="Gemini connection"
+        />
+
+        <View style={styles.aiCard}>
+
+          <View style={styles.aiHeader}>
+
+            <View style={styles.aiIcon}>
+              <ThemedText
+                style={styles.aiIconText}
+              >
+                AI
+              </ThemedText>
+            </View>
+
+            <View style={styles.aiHeaderText}>
+
+              <ThemedText
+                style={styles.aiTitle}
+              >
+                Your personal AI engine
+              </ThemedText>
+
+              <ThemedText
+                style={styles.aiSubtitle}
+              >
+                Gemini generates your adaptive
+                workouts.
+              </ThemedText>
+
+            </View>
+
+          </View>
+
+
+          {/* =============================================================
+              EXPLANATION
+          ============================================================= */}
+
+          <View style={styles.explanationBox}>
+
+            <ThemedText
+              style={styles.explanationTitle}
+            >
+              Why do I need a key?
+            </ThemedText>
+
+            <ThemedText
+              style={styles.explanationText}
+            >
+              BheemAI uses Google's Gemini AI to
+              create personalized workouts. Your
+              Gemini API key belongs to you and is
+              stored securely on this device.
+            </ThemedText>
+
             <TouchableOpacity
-              key={level}
-              style={[styles.option, selectedFitnessLevel === level && styles.optionSelected]}
-              onPress={() => setSelectedFitnessLevel(level)}>
-              <ThemedText style={selectedFitnessLevel === level ? styles.optionTextSelected : styles.optionText}>
-                {level}
+              onPress={() =>
+                WebBrowser.openBrowserAsync(
+                  'https://ai.google.dev/gemini-api/docs/api-key'
+                )
+              }
+            >
+              <ThemedText
+                style={styles.aiLink}
+              >
+                Learn how to get a Gemini API key →
               </ThemedText>
             </TouchableOpacity>
-          ))}
-        </ThemedView>
 
-        {/* Goal */}
-        <ThemedText type="subtitle" style={styles.label}>Goal</ThemedText>
-        <ThemedView style={styles.optionsRow}>
-          {GOALS.map((goal) => (
-            <TouchableOpacity
-              key={goal}
-              style={[styles.option, selectedGoal === goal && styles.optionSelected]}
-              onPress={() => setSelectedGoal(goal)}>
-              <ThemedText style={selectedGoal === goal ? styles.optionTextSelected : styles.optionText}>
-                {goal}
-              </ThemedText>
-            </TouchableOpacity>
-          ))}
-        </ThemedView>
+          </View>
 
-        {/* Equipment */}
-        <ThemedText type="subtitle" style={styles.label}>Available Equipment</ThemedText>
-        <ThemedView style={styles.optionsRow}>
-          {EQUIPMENT.map((item) => (
-            <TouchableOpacity
-              key={item}
-              style={[styles.option, selectedEquipment.includes(item) && styles.optionSelected]}
-              onPress={() => toggleEquipment(item)}>
-              <ThemedText style={selectedEquipment.includes(item) ? styles.optionTextSelected : styles.optionText}>
-                {item}
-              </ThemedText>
-            </TouchableOpacity>
-          ))}
-        </ThemedView>
 
-        {/* Time Available */}
-        <ThemedText type="subtitle" style={styles.label}>Time Available Today</ThemedText>
-        <ThemedView style={styles.optionsRow}>
-          {TIME_OPTIONS.map((t) => (
-            <TouchableOpacity
-              key={t}
-              style={[styles.option, selectedTime === t && styles.optionSelected]}
-              onPress={() => setSelectedTime(t)}>
-              <ThemedText style={selectedTime === t ? styles.optionTextSelected : styles.optionText}>
-                {t}
-              </ThemedText>
-            </TouchableOpacity>
-          ))}
-        </ThemedView>
+          {/* =============================================================
+              STATUS
+          ============================================================= */}
 
-        {/* Special Instructions */}
-<ThemedText type="subtitle" style={styles.label}>Special Instructions / Health & Exercise Considerations</ThemedText>
-<TextInput
-  style={[styles.input, styles.textArea]}
-  placeholder="Injuries, medical conditions, exercises to avoid, or anything else Atlas should consider when creating your workouts."
-  placeholderTextColor="#888"
-  value={exercisesToAvoid}
-  onChangeText={setExercisesToAvoid}
-  multiline
-  numberOfLines={3}
-/>
+          {geminiConnected ? (
 
-        {/* AI Coach */}
-        <ThemedText type="subtitle" style={styles.label}>AI Coach</ThemedText>
-        <ThemedView style={styles.aiCoachCard}>
-          <ThemedText type="defaultSemiBold">Gemini API Key</ThemedText>
-          <ThemedText style={styles.aiExplainer}>
-  An API key is a private code that allows Atlas to use Google's Gemini AI on your behalf. Your key is stored securely on this device and is used when Atlas requests AI features.
-</ThemedText>
-<TouchableOpacity
-  onPress={() =>
-    WebBrowser.openBrowserAsync(
-      'https://ai.google.dev/gemini-api/docs/api-key'
-    )
-  }
->
-  <ThemedText style={styles.aiLink}>How to get a Gemini API key →</ThemedText>
-</TouchableOpacity>
+            <View style={styles.connectedSection}>
 
-          {!geminiConnected ? (
-            <>
-              <ThemedText style={styles.statusText}>Not connected</ThemedText>
+              <View style={styles.statusRow}>
+
+                <View
+                  style={
+                    styles.statusDotConnected
+                  }
+                />
+
+                <ThemedText
+                  style={
+                    styles.connectedText
+                  }
+                >
+                  Gemini connected
+                </ThemedText>
+
+              </View>
+
+
               <TouchableOpacity
-                style={styles.connectButton}
-                onPress={() => setShowKeyInput(true)}>
-                <ThemedText style={styles.connectButtonText}>Connect Gemini</ThemedText>
-              </TouchableOpacity>
-            </>
-          ) : (
-            <>
-              <ThemedText style={styles.statusTextConnected}>✓ Gemini connected</ThemedText>
-              <TouchableOpacity
-                style={styles.secondaryButton}
-                onPress={handleTestConnection}
-                disabled={testingConnection}>
-                <ThemedText style={styles.secondaryButtonText}>
-                  {testingConnection ? 'Testing...' : 'Test Connection'}
+                style={styles.outlineButton}
+                onPress={
+                  handleTestConnection
+                }
+                disabled={
+                  testingConnection
+                }
+              >
+                <ThemedText
+                  style={
+                    styles.outlineButtonText
+                  }
+                >
+                  {testingConnection
+                    ? 'Testing connection...'
+                    : 'Test Connection'}
                 </ThemedText>
               </TouchableOpacity>
+
+
               <TouchableOpacity
-                style={styles.secondaryButton}
-                onPress={() => setShowKeyInput(true)}>
-                <ThemedText style={styles.secondaryButtonText}>Replace API Key</ThemedText>
+                style={styles.outlineButton}
+                onPress={() =>
+                  setShowKeyInput(true)
+                }
+              >
+                <ThemedText
+                  style={
+                    styles.outlineButtonText
+                  }
+                >
+                  Replace API Key
+                </ThemedText>
               </TouchableOpacity>
+
+
               <TouchableOpacity
                 style={styles.removeButton}
-                onPress={handleRemoveKey}>
-                <ThemedText style={styles.removeButtonText}>Remove API Key</ThemedText>
+                onPress={
+                  handleRemoveKey
+                }
+              >
+                <ThemedText
+                  style={
+                    styles.removeButtonText
+                  }
+                >
+                  Remove API Key
+                </ThemedText>
               </TouchableOpacity>
-            </>
+
+            </View>
+
+          ) : (
+
+            <View style={styles.notConnectedSection}>
+
+              <View style={styles.statusRow}>
+
+                <View
+                  style={
+                    styles.statusDot
+                  }
+                />
+
+                <ThemedText
+                  style={styles.statusText}
+                >
+                  Gemini not connected
+                </ThemedText>
+
+              </View>
+
+              <ThemedText
+                style={styles.keyRequiredText}
+              >
+                Connect your own Gemini API key
+                to generate AI workouts.
+              </ThemedText>
+
+              <TouchableOpacity
+                style={styles.primaryButton}
+                onPress={() =>
+                  setShowKeyInput(true)
+                }
+              >
+                <ThemedText
+                  style={
+                    styles.primaryButtonText
+                  }
+                >
+                  Connect Gemini
+                </ThemedText>
+              </TouchableOpacity>
+
+            </View>
+
           )}
 
+
+          {/* =============================================================
+              KEY INPUT
+          ============================================================= */}
+
           {showKeyInput && (
-            <ThemedView style={styles.keyInputContainer}>
+            <View
+              style={
+                styles.keyInputContainer
+              }
+            >
+
+              <ThemedText
+                style={styles.keyInputTitle}
+              >
+                {geminiConnected
+                  ? 'Replace your API key'
+                  : 'Add your Gemini API key'}
+              </ThemedText>
+
+              <ThemedText
+                style={styles.keyInputSubtitle}
+              >
+                Paste the key you received from
+                Google AI Studio.
+              </ThemedText>
+
               <TextInput
                 style={styles.input}
-                placeholder="Paste your Gemini API key"
-                placeholderTextColor="#888"
+                placeholder="Paste Gemini API key"
+                placeholderTextColor="#666"
                 value={keyInputValue}
-                onChangeText={setKeyInputValue}
+                onChangeText={
+                  setKeyInputValue
+                }
                 secureTextEntry
                 autoCapitalize="none"
                 autoCorrect={false}
+                autoComplete="off"
               />
-              <ThemedView style={styles.keyInputRow}>
-                <TouchableOpacity
-                  style={styles.cancelKeyButton}
-                  onPress={() => {
-                    setShowKeyInput(false);
-                    setKeyInputValue('');
-                  }}>
-                  <ThemedText style={styles.secondaryButtonText}>Cancel</ThemedText>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.saveKeyButton} onPress={handleSaveKey}>
-                  <ThemedText style={styles.connectButtonText}>Save Key</ThemedText>
-                </TouchableOpacity>
-              </ThemedView>
-            </ThemedView>
-          )}
-        </ThemedView>
-        
 
-        <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-          <ThemedText style={styles.saveButtonText}>Save Profile</ThemedText>
+              <View
+                style={styles.keyButtonRow}
+              >
+
+                <TouchableOpacity
+                  style={
+                    styles.cancelButton
+                  }
+                  onPress={() => {
+                    setShowKeyInput(
+                      false
+                    );
+                    setKeyInputValue('');
+                  }}
+                >
+                  <ThemedText
+                    style={
+                      styles.cancelButtonText
+                    }
+                  >
+                    Cancel
+                  </ThemedText>
+                </TouchableOpacity>
+
+
+                <TouchableOpacity
+                  style={
+                    styles.saveKeyButton
+                  }
+                  onPress={
+                    handleSaveKey
+                  }
+                >
+                  <ThemedText
+                    style={
+                      styles.saveKeyButtonText
+                    }
+                  >
+                    Save Key
+                  </ThemedText>
+                </TouchableOpacity>
+
+              </View>
+
+            </View>
+          )}
+
+        </View>
+
+
+        {/* ===============================================================
+            SAVE PROFILE
+        =============================================================== */}
+
+        <TouchableOpacity
+          style={styles.saveProfileButton}
+          activeOpacity={0.85}
+          onPress={handleSave}
+        >
+          <ThemedText
+            style={
+              styles.saveProfileButtonText
+            }
+          >
+            Save Profile
+          </ThemedText>
         </TouchableOpacity>
+
+
+        <ThemedText
+          style={styles.footerText}
+        >
+          BheemAI · Free AI Fitness Coach
+        </ThemedText>
 
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
+
+/* =========================================================================
+   SMALL REUSABLE UI COMPONENTS
+========================================================================= */
+
+function SectionHeader({
+  eyebrow,
+  title,
+}: {
+  eyebrow: string;
+  title: string;
+}) {
+  return (
+    <View style={styles.sectionHeader}>
+
+      <ThemedText
+        style={styles.sectionEyebrow}
+      >
+        {eyebrow}
+      </ThemedText>
+
+      <ThemedText
+        style={styles.sectionTitle}
+      >
+        {title}
+      </ThemedText>
+
+    </View>
+  );
+}
+
+
+function FieldLabel({
+  label,
+}: {
+  label: string;
+}) {
+  return (
+    <ThemedText
+      style={styles.fieldLabel}
+    >
+      {label}
+    </ThemedText>
+  );
+}
+
+
+function OptionChip({
+  label,
+  selected,
+  onPress,
+}: {
+  label: string;
+  selected: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      style={[
+        styles.option,
+        selected &&
+          styles.optionSelected,
+      ]}
+      activeOpacity={0.8}
+      onPress={onPress}
+    >
+      {selected && (
+        <ThemedText
+          style={styles.check}
+        >
+          ✓
+        </ThemedText>
+      )}
+
+      <ThemedText
+        style={
+          selected
+            ? styles.optionTextSelected
+            : styles.optionText
+        }
+      >
+        {label}
+      </ThemedText>
+
+    </TouchableOpacity>
+  );
+}
+
+
+/* =========================================================================
+   STYLES
+========================================================================= */
+
 const styles = StyleSheet.create({
+
+  screen: {
+    flex: 1,
+    backgroundColor: BACKGROUND,
+  },
+
   container: {
-    padding: 20,
-    gap: 8,
+    paddingHorizontal: 20,
+    paddingTop: 54,
+    paddingBottom: 45,
   },
+
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: BACKGROUND,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  loadingText: {
+    marginTop: 12,
+    opacity: 0.55,
+  },
+
+
+  /* -----------------------------------------------------------------------
+     HEADER
+  ----------------------------------------------------------------------- */
+
   header: {
+    marginBottom: 28,
+  },
+
+  brand: {
+    color: ORANGE,
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 3.5,
+    marginBottom: 9,
+  },
+
+  title: {
+    fontSize: 30,
+    lineHeight: 36,
+    fontWeight: '800',
+    marginBottom: 7,
+  },
+
+  subtitle: {
+    fontSize: 15,
+    lineHeight: 21,
+    opacity: 0.58,
+    maxWidth: 350,
+  },
+
+
+  /* -----------------------------------------------------------------------
+     SECTION HEADERS
+  ----------------------------------------------------------------------- */
+
+  sectionHeader: {
     marginBottom: 12,
+    marginTop: 7,
   },
-  label: {
-    marginTop: 16,
-    marginBottom: 8,
+
+  sectionEyebrow: {
+    color: ORANGE,
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 1.7,
+    marginBottom: 4,
   },
-  input: {
+
+  sectionTitle: {
+    fontSize: 19,
+    fontWeight: '800',
+  },
+
+
+  /* -----------------------------------------------------------------------
+     CARDS
+  ----------------------------------------------------------------------- */
+
+  card: {
+    backgroundColor: CARD,
     borderWidth: 1,
-    borderColor: '#888',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    color: '#fff',
+    borderColor: BORDER,
+    borderRadius: 18,
+    padding: 17,
+    marginBottom: 25,
   },
+
+
+  /* -----------------------------------------------------------------------
+     FIELDS
+  ----------------------------------------------------------------------- */
+
+  fieldLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    opacity: 0.72,
+    marginBottom: 8,
+    marginTop: 12,
+  },
+
+  input: {
+    minHeight: 50,
+
+    backgroundColor: '#101010',
+
+    borderWidth: 1,
+    borderColor: '#333333',
+
+    borderRadius: 12,
+
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+
+    fontSize: 15,
+
+    color: '#FFFFFF',
+  },
+
   textArea: {
-    minHeight: 80,
-    textAlignVertical: 'top',
+    minHeight: 110,
+    paddingTop: 14,
   },
+
+  heightRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  heightInput: {
+    flex: 1,
+  },
+
+  unitBox: {
+    height: 50,
+    paddingHorizontal: 15,
+
+    borderWidth: 1,
+    borderColor: '#333333',
+
+    borderRadius: 12,
+
+    backgroundColor: '#101010',
+
+    justifyContent: 'center',
+
+    marginLeft: 8,
+  },
+
+  unitText: {
+    opacity: 0.55,
+    fontSize: 14,
+  },
+
+
+  /* -----------------------------------------------------------------------
+     OPTIONS
+  ----------------------------------------------------------------------- */
+
   optionsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
   },
+
   option: {
-    borderWidth: 1,
-    borderColor: '#888',
-    borderRadius: 20,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-  },
-  optionSelected: {
-    backgroundColor: '#1D8CF8',
-    borderColor: '#1D8CF8',
-  },
-  optionText: {
-    fontSize: 14,
-  },
-  optionTextSelected: {
-    fontSize: 14,
-    color: '#fff',
-  },
-  saveButton: {
-    marginTop: 24,
-    backgroundColor: '#1D8CF8',
-    borderRadius: 8,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  saveButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  aiCoachCard: {
-    borderWidth: 1,
-    borderColor: '#444',
-    borderRadius: 8,
-    padding: 14,
-    gap: 8,
-  },
-  statusText: {
-    opacity: 0.6,
-    fontSize: 14,
-  },
-  statusTextConnected: {
-    color: '#22A559',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  connectButton: {
-    backgroundColor: '#1D8CF8',
-    borderRadius: 8,
-    paddingVertical: 10,
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  connectButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  secondaryButton: {
-    borderWidth: 1,
-    borderColor: '#1D8CF8',
-    borderRadius: 8,
-    paddingVertical: 10,
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  secondaryButtonText: {
-    color: '#1D8CF8',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  removeButton: {
-    borderWidth: 1,
-    borderColor: '#E5484D',
-    borderRadius: 8,
-    paddingVertical: 10,
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  removeButtonText: {
-    color: '#E5484D',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  keyInputContainer: {
-    marginTop: 8,
-    gap: 8,
-  },
-  keyInputRow: {
+    minHeight: 40,
+
     flexDirection: 'row',
-    gap: 8,
-  },
-  cancelKeyButton: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: '#888',
-    borderRadius: 8,
-    paddingVertical: 10,
     alignItems: 'center',
 
+    borderWidth: 1,
+    borderColor: '#3A3A3A',
+
+    borderRadius: 12,
+
+    paddingVertical: 9,
+    paddingHorizontal: 13,
+
+    backgroundColor: '#101010',
   },
-  aiExplainer: {
-  fontSize: 12,
-  opacity: 0.7,
-  lineHeight: 17,
-},
-aiLink: {
-  fontSize: 13,
-  color: '#1D8CF8',
-  fontWeight: '600',
-  marginBottom: 4,
-},
+
+  optionSelected: {
+    backgroundColor: ORANGE,
+    borderColor: ORANGE,
+  },
+
+  optionText: {
+    fontSize: 13,
+    opacity: 0.75,
+  },
+
+  optionTextSelected: {
+    color: '#080808',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+
+  check: {
+    color: '#080808',
+    fontSize: 13,
+    fontWeight: '900',
+    marginRight: 5,
+  },
+
+  helperText: {
+    fontSize: 13,
+    lineHeight: 19,
+    opacity: 0.55,
+    marginBottom: 13,
+  },
+
+
+  /* -----------------------------------------------------------------------
+     AI CARD
+  ----------------------------------------------------------------------- */
+
+  aiCard: {
+    backgroundColor: CARD,
+
+    borderWidth: 1,
+    borderColor: BORDER,
+
+    borderRadius: 20,
+
+    padding: 18,
+
+    marginBottom: 25,
+  },
+
+  aiHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 18,
+  },
+
+  aiIcon: {
+    width: 50,
+    height: 50,
+
+    borderRadius: 15,
+
+    backgroundColor: ORANGE,
+
+    alignItems: 'center',
+    justifyContent: 'center',
+
+    marginRight: 13,
+  },
+
+  aiIconText: {
+    color: '#080808',
+    fontSize: 14,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+
+  aiHeaderText: {
+    flex: 1,
+  },
+
+  aiTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    marginBottom: 3,
+  },
+
+  aiSubtitle: {
+    fontSize: 12,
+    opacity: 0.55,
+  },
+
+
+  /* -----------------------------------------------------------------------
+     GEMINI EXPLANATION
+  ----------------------------------------------------------------------- */
+
+  explanationBox: {
+    backgroundColor: '#101010',
+
+    borderRadius: 13,
+
+    padding: 14,
+
+    borderWidth: 1,
+    borderColor: '#252525',
+
+    marginBottom: 16,
+  },
+
+  explanationTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    marginBottom: 6,
+  },
+
+  explanationText: {
+    fontSize: 12,
+    lineHeight: 18,
+    opacity: 0.62,
+    marginBottom: 9,
+  },
+
+  aiLink: {
+    color: ORANGE,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+
+
+  /* -----------------------------------------------------------------------
+     STATUS
+  ----------------------------------------------------------------------- */
+
+  connectedSection: {
+    gap: 8,
+  },
+
+  notConnectedSection: {
+    gap: 8,
+  },
+
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+
+  statusDot: {
+    width: 9,
+    height: 9,
+
+    borderRadius: 5,
+
+    backgroundColor: '#666',
+
+    marginRight: 8,
+  },
+
+  statusDotConnected: {
+    width: 9,
+    height: 9,
+
+    borderRadius: 5,
+
+    backgroundColor: GREEN,
+
+    marginRight: 8,
+  },
+
+  statusText: {
+    fontSize: 13,
+    opacity: 0.6,
+  },
+
+  connectedText: {
+    color: GREEN,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+
+  keyRequiredText: {
+    fontSize: 12,
+    lineHeight: 18,
+    opacity: 0.55,
+    marginBottom: 5,
+  },
+
+
+  /* -----------------------------------------------------------------------
+     BUTTONS
+  ----------------------------------------------------------------------- */
+
+  primaryButton: {
+    minHeight: 50,
+
+    backgroundColor: ORANGE,
+
+    borderRadius: 12,
+
+    alignItems: 'center',
+    justifyContent: 'center',
+
+    paddingHorizontal: 15,
+
+    marginTop: 4,
+  },
+
+  primaryButtonText: {
+    color: '#080808',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+
+  outlineButton: {
+    minHeight: 46,
+
+    borderWidth: 1,
+    borderColor: ORANGE,
+
+    borderRadius: 11,
+
+    alignItems: 'center',
+    justifyContent: 'center',
+
+    paddingHorizontal: 14,
+
+    backgroundColor: 'transparent',
+  },
+
+  outlineButtonText: {
+    color: ORANGE,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+
+  removeButton: {
+    minHeight: 46,
+
+    borderWidth: 1,
+    borderColor: '#4A2426',
+
+    borderRadius: 11,
+
+    alignItems: 'center',
+    justifyContent: 'center',
+
+    paddingHorizontal: 14,
+
+    backgroundColor: '#180E0F',
+  },
+
+  removeButtonText: {
+    color: RED,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+
+
+  /* -----------------------------------------------------------------------
+     API KEY INPUT
+  ----------------------------------------------------------------------- */
+
+  keyInputContainer: {
+    marginTop: 15,
+
+    paddingTop: 16,
+
+    borderTopWidth: 1,
+    borderTopColor: BORDER,
+  },
+
+  keyInputTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+
+  keyInputSubtitle: {
+    fontSize: 12,
+    lineHeight: 18,
+    opacity: 0.55,
+    marginBottom: 12,
+  },
+
+  keyButtonRow: {
+    flexDirection: 'row',
+    gap: 9,
+    marginTop: 9,
+  },
+
+  cancelButton: {
+    flex: 1,
+
+    minHeight: 48,
+
+    borderWidth: 1,
+    borderColor: '#444444',
+
+    borderRadius: 11,
+
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  cancelButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
+    opacity: 0.7,
+  },
+
   saveKeyButton: {
     flex: 1,
-    backgroundColor: '#1D8CF8',
-    borderRadius: 8,
-    paddingVertical: 10,
+
+    minHeight: 48,
+
+    backgroundColor: ORANGE,
+
+    borderRadius: 11,
+
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  saveKeyButtonText: {
+    color: '#080808',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+
+
+  /* -----------------------------------------------------------------------
+     SAVE PROFILE
+  ----------------------------------------------------------------------- */
+
+  saveProfileButton: {
+    minHeight: 58,
+
+    backgroundColor: ORANGE,
+
+    borderRadius: 14,
+
+    alignItems: 'center',
+    justifyContent: 'center',
+
+    marginTop: 2,
+  },
+
+  saveProfileButtonText: {
+    color: '#080808',
+    fontSize: 16,
+    fontWeight: '900',
+  },
+
+
+  /* -----------------------------------------------------------------------
+     FOOTER
+  ----------------------------------------------------------------------- */
+
+  footerText: {
+    textAlign: 'center',
+
+    fontSize: 11,
+
+    opacity: 0.3,
+
+    marginTop: 22,
   },
 });
