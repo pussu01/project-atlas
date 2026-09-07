@@ -14,7 +14,7 @@ import {
   useLocalSearchParams,
 } from 'expo-router';
 
-import * as SQLite from 'expo-sqlite';
+import { getDatabase } from '@/services/db-init';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -172,8 +172,7 @@ export default function WorkoutScreen() {
        * ------------------------------------------------------------
        */
 
-      const db =
-        await SQLite.openDatabaseAsync('atlas.db');
+      const db = await getDatabase();
 
       const profileRow =
         await db.getFirstAsync<{
@@ -309,8 +308,7 @@ export default function WorkoutScreen() {
     }
 
     try {
-      const db =
-        await SQLite.openDatabaseAsync('atlas.db');
+      const db = await getDatabase();
 
       const today =
         new Date().toISOString().split('T')[0];

@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 
 import * as WebBrowser from 'expo-web-browser';
-import * as SQLite from 'expo-sqlite';
+import { getDatabase } from '@/services/db-init';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -104,8 +104,7 @@ export default function ProfileScreen() {
 
   const setupAndLoad = async () => {
     try {
-      const db =
-        await SQLite.openDatabaseAsync('atlas.db');
+      const db = await getDatabase();
 
       const row =
         await db.getFirstAsync<{
@@ -274,10 +273,7 @@ export default function ProfileScreen() {
     }
 
     try {
-      const db =
-        await SQLite.openDatabaseAsync(
-          'atlas.db'
-        );
+      const db = await getDatabase();
 
       await db.runAsync(
         `INSERT INTO profile (

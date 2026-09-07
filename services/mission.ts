@@ -1,4 +1,4 @@
-import * as SQLite from 'expo-sqlite';
+import { getDatabase } from './db-init';
 
 export type MissionAction = 'profile' | 'workout';
 
@@ -31,7 +31,7 @@ function getDateDifferenceInHours(dateString: string): number {
 }
 
 export async function getTodaysMission(): Promise<TodaysMission> {
-  const db = await SQLite.openDatabaseAsync('atlas.db');
+  const db = await getDatabase();
 
   // ------------------------------------------------------------
   // 1. Check whether the user has created a profile

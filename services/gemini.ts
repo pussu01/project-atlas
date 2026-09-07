@@ -386,34 +386,28 @@ function normalizeWorkout(
     };
   };
 
-  const warmup = Array.isArray(value.warmup)
+    const warmup = Array.isArray(value.warmup)
     ? value.warmup
         .map(normalizeStep)
         .filter(
-          (
-            item
-          ): item is WorkoutStep =>
+          (item: WorkoutStep | null): item is WorkoutStep =>
             item !== null
         )
     : [];
 
-  const exercises = value.exercises
+    const exercises = value.exercises
     .map(normalizeExercise)
     .filter(
-      (
-        item
-      ): item is WorkoutExercise =>
+      (item: WorkoutExercise | null): item is WorkoutExercise =>
         item !== null
     );
 
-  const cooldown =
+    const cooldown =
     Array.isArray(value.cooldown)
       ? value.cooldown
           .map(normalizeStep)
           .filter(
-            (
-              item
-            ): item is WorkoutStep =>
+            (item: WorkoutStep | null): item is WorkoutStep =>
               item !== null
           )
       : [];

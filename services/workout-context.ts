@@ -1,9 +1,15 @@
-import * as SQLite from 'expo-sqlite';
 import { RecentWorkoutSummary, RecentMeasurementSummary } from './gemini';
+import { getDatabase } from './db-init';
 
-export async function getRecentWorkouts(limit: number = 5): Promise<RecentWorkoutSummary[]> {
-  const db = await SQLite.openDatabaseAsync('atlas.db');
-  const rows = await db.getAllAsync<{ date: string; workout_json: string }>(
+export async function getRecentWorkouts(
+  limit: number = 5
+): Promise<RecentWorkoutSummary[]> {
+  const db = await getDatabase();
+
+  const rows = await db.getAllAsync<{
+    date: string;
+    workout_json: string;
+  }>(
     'SELECT date, workout_json FROM workout_history ORDER BY id DESC LIMIT ?',
     [limit]
   );
@@ -13,6 +19,7 @@ export async function getRecentWorkouts(limit: number = 5): Promise<RecentWorkou
   for (const row of rows) {
     try {
       const parsed = JSON.parse(row.workout_json);
+
       summaries.push({
         date: row.date,
         title: parsed.title || 'Workout',
@@ -24,7 +31,7 @@ export async function getRecentWorkouts(limit: number = 5): Promise<RecentWorkou
           : [],
       });
     } catch {
-      // Skip any entry that fails to parse rather than crashing generation
+      // Skip any entry that fails to parse rather than crashing generation.
       continue;
     }
   }
@@ -32,8 +39,11 @@ export async function getRecentWorkouts(limit: number = 5): Promise<RecentWorkou
   return summaries;
 }
 
-export async function getRecentMeasurements(limit: number = 3): Promise<RecentMeasurementSummary[]> {
-  const db = await SQLite.openDatabaseAsync('atlas.db');
+export async function getRecentMeasurements(
+  limit: number = 3
+): Promise<RecentMeasurementSummary[]> {
+  const db = await getDatabase();
+
   const rows = await db.getAllAsync<{
     date: string;
     weight_kg: number | null;
@@ -56,7 +66,9 @@ export async function getRecentMeasurements(limit: number = 3): Promise<RecentMe
   }));
 }
 
-export function calculateRecoveryConstraint(recentWorkouts: RecentWorkoutSummary[]): string | null {
+export function calculateRecoveryConstraint(
+  recentWorkouts: RecentWorkoutSummary[]
+): string | null {
   if (!recentWorkouts || recentWorkouts.length === 0) {
     return null;
   }
@@ -66,26 +78,41 @@ export function calculateRecoveryConstraint(recentWorkouts: RecentWorkoutSummary
 
   const lastDate = new Date(mostRecent.date);
   const today = new Date();
+
   lastDate.setHours(0, 0, 0, 0);
   today.setHours(0, 0, 0, 0);
 
-  const diffMs = today.getTime() - lastDate.getTime();
-  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+  const diffMs =
+    today.getTime() - lastDate.getTime();
 
-  // Only impose a constraint if the last workout was within the previous 2 days
+  const diffDays = Math.round(
+    diffMs / (1000 * 60 * 60 * 24)
+  );
+
+  // Only impose a constraint if the last workout
+  // was within the previous 2 days.
   if (diffDays < 0 || diffDays > 2) {
     return null;
   }
 
   const focusAreas = Array.from(
-    new Set(mostRecent.exercises.map((e) => e.focus).filter((f) => !!f))
+    new Set(
+      mostRecent.exercises
+        .map((e) => e.focus)
+        .filter((f) => !!f)
+    )
   );
 
   if (focusAreas.length === 0) {
     return null;
   }
 
-  const dayLabel = diffDays === 0 ? 'today' : diffDays === 1 ? '1 day ago' : `${diffDays} days ago`;
+  const dayLabel =
+    diffDays === 0
+      ? 'today'
+      : diffDays === 1
+      ? '1 day ago'
+      : `${diffDays} days ago`;
 
   return `RECOVERY CONSTRAINT:
 

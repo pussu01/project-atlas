@@ -1,6 +1,8 @@
 import * as SQLite from 'expo-sqlite';
 
-export async function initDatabase(): Promise<void> {
+let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
+
+async function initializeDatabase(): Promise<SQLite.SQLiteDatabase> {
   const db = await SQLite.openDatabaseAsync('atlas.db');
 
   // ── Core tables ──────────────────────────────────────────────────────────
@@ -23,8 +25,6 @@ export async function initDatabase(): Promise<void> {
   `);
 
   // ── Measurements ─────────────────────────────────────────────────────────
-  // Each row represents one historical body measurement.
-  // Weight is required; other measurements are optional.
 
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS measurements (
@@ -38,40 +38,46 @@ export async function initDatabase(): Promise<void> {
     );
   `);
 
-  // ── Migrations ────────────────────────────────────────────────────────────
-  // Each ALTER TABLE is wrapped in its own try/catch.
-  // SQLite does not support ALTER TABLE … IF NOT EXISTS, so we catch the
-  // "duplicate column" error and continue. This is safe to run on every
-  // app launch — existing installations are unaffected.
+  // ── Profile migrations ───────────────────────────────────────────────────
 
   try {
-    await db.execAsync('ALTER TABLE profile ADD COLUMN time_available TEXT;');
+    await db.execAsync(
+      'ALTER TABLE profile ADD COLUMN time_available TEXT;'
+    );
   } catch {
-    // Column already exists — safe to ignore.
+    // Column already exists.
   }
 
   try {
-    await db.execAsync('ALTER TABLE profile ADD COLUMN age INTEGER;');
+    await db.execAsync(
+      'ALTER TABLE profile ADD COLUMN age INTEGER;'
+    );
   } catch {
-    // Column already exists — safe to ignore.
+    // Column already exists.
   }
 
   try {
-    await db.execAsync('ALTER TABLE profile ADD COLUMN sex TEXT;');
+    await db.execAsync(
+      'ALTER TABLE profile ADD COLUMN sex TEXT;'
+    );
   } catch {
-    // Column already exists — safe to ignore.
+    // Column already exists.
   }
 
   try {
-    await db.execAsync('ALTER TABLE profile ADD COLUMN height_cm REAL;');
+    await db.execAsync(
+      'ALTER TABLE profile ADD COLUMN height_cm REAL;'
+    );
   } catch {
-    // Column already exists — safe to ignore.
+    // Column already exists.
   }
 
   try {
-    await db.execAsync('ALTER TABLE profile ADD COLUMN fitness_level TEXT;');
+    await db.execAsync(
+      'ALTER TABLE profile ADD COLUMN fitness_level TEXT;'
+    );
   } catch {
-    // Column already exists — safe to ignore.
+    // Column already exists.
   }
 
   try {
@@ -79,6 +85,24 @@ export async function initDatabase(): Promise<void> {
       'ALTER TABLE profile ADD COLUMN exercises_to_avoid TEXT;'
     );
   } catch {
-    // Column already exists — safe to ignore.
+    // Column already exists.
   }
+
+  return db;
+}
+
+export function getDatabase(): Promise<SQLite.SQLiteDatabase> {
+  if (!dbPromise) {
+    dbPromise = initializeDatabase().catch((error) => {
+      // Allow a later attempt if initialization itself failed.
+      dbPromise = null;
+      throw error;
+    });
+  }
+
+  return dbPromise;
+}
+
+export async function initDatabase(): Promise<void> {
+  await getDatabase();
 }

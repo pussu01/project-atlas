@@ -14,7 +14,7 @@ import {
   useLocalSearchParams,
   useRouter,
 } from 'expo-router';
-import * as SQLite from 'expo-sqlite';
+import { getDatabase } from '@/services/db-init';
 
 import {
   ThemedText,
@@ -154,10 +154,7 @@ export default function WorkoutDetailsScreen() {
         }
 
         try {
-          const db =
-            await SQLite.openDatabaseAsync(
-              'atlas.db'
-            );
+          const db = await getDatabase();
 
           const row =
             await db.getFirstAsync<HistoryRow>(

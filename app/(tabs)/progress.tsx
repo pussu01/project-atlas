@@ -11,7 +11,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
-import * as SQLite from 'expo-sqlite';
+import { getDatabase } from '@/services/db-init';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { LineChart } from 'react-native-gifted-charts';
@@ -304,10 +304,7 @@ export default function ProgressScreen() {
     setLoading(true);
 
     try {
-      const db =
-        await SQLite.openDatabaseAsync(
-          'atlas.db'
-        );
+      const db = await getDatabase();
 
       const historyRows =
         await db.getAllAsync<HistoryRow>(
@@ -492,10 +489,7 @@ export default function ProgressScreen() {
     }
 
     try {
-      const db =
-        await SQLite.openDatabaseAsync(
-          'atlas.db'
-        );
+      const db = await getDatabase();
 
       await db.runAsync(
         `INSERT INTO measurements
