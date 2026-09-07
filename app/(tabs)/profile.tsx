@@ -519,22 +519,20 @@ export default function ProfileScreen() {
         <View style={styles.header}>
 
           <ThemedText style={styles.brand}>
-            BHEEMAI
-          </ThemedText>
+  BHEEMAI
+</ThemedText>
 
-          <ThemedText
-            type="title"
-            style={styles.title}
-          >
-            Your Profile
-          </ThemedText>
+<ThemedText
+  type="title"
+  style={styles.title}
+>
+  Build your profile
+</ThemedText>
 
-          <ThemedText
-            style={styles.subtitle}
-          >
-            Tell BheemAI how you train so your
-            workouts can adapt to you.
-          </ThemedText>
+<ThemedText style={styles.subtitle}>
+  Give BheemAI the context it needs to
+  build better workouts for you.
+</ThemedText>
 
         </View>
 
@@ -544,9 +542,9 @@ export default function ProfileScreen() {
         =============================================================== */}
 
         <SectionHeader
-          eyebrow="ABOUT YOU"
-          title="Personal details"
-        />
+  eyebrow="PERSONAL"
+  title="About you"
+/>
 
         <View style={styles.card}>
 
@@ -632,9 +630,9 @@ export default function ProfileScreen() {
         =============================================================== */}
 
         <SectionHeader
-          eyebrow="TRAINING"
-          title="Fitness preferences"
-        />
+  eyebrow="FITNESS"
+  title="How you train"
+/>
 
         <View style={styles.card}>
 
@@ -748,7 +746,7 @@ export default function ProfileScreen() {
         =============================================================== */}
 
         <SectionHeader
-          eyebrow="PERSONALIZATION"
+          eyebrow="PERSONALISATION"
           title="Anything BheemAI should know?"
         />
 
