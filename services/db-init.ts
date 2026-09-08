@@ -17,12 +17,29 @@ async function initializeDatabase(): Promise<SQLite.SQLiteDatabase> {
   `);
 
   await db.execAsync(`
-    CREATE TABLE IF NOT EXISTS workout_history (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      date TEXT,
-      workout_json TEXT
-    );
-  `);
+  CREATE TABLE IF NOT EXISTS workout_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    date TEXT,
+    workout_json TEXT,
+    active_seconds REAL DEFAULT 0,
+    calories REAL DEFAULT 0
+  );
+`);
+try {
+  await db.execAsync(
+    'ALTER TABLE workout_history ADD COLUMN active_seconds REAL DEFAULT 0;'
+  );
+} catch {
+  // Column already exists.
+}
+
+try {
+  await db.execAsync(
+    'ALTER TABLE workout_history ADD COLUMN calories REAL DEFAULT 0;'
+  );
+} catch {
+  // Column already exists.
+}
 
   // ── Measurements ─────────────────────────────────────────────────────────
 

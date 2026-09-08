@@ -334,14 +334,20 @@ export default function WorkoutScreen() {
       };
 
       await db.runAsync(
-        `INSERT INTO workout_history
-          (date, workout_json)
-         VALUES (?, ?)`,
-        [
-          today,
-          JSON.stringify(workoutToSave),
-        ]
-      );
+  `INSERT INTO workout_history
+    (date, workout_json, active_seconds, calories)
+   VALUES (?, ?, ?, ?)`,
+  [
+    today,
+    JSON.stringify(workoutToSave),
+    summary
+      ? Number(summary.activeSeconds) || 0
+      : 0,
+    summary
+      ? Number(summary.calories) || 0
+      : 0,
+  ]
+);
 
       setSaved(true);
 
