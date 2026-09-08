@@ -11,7 +11,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 
-import * as WebBrowser from 'expo-web-browser';
+import * as Linking from 'expo-linking';
 import { getDatabase } from '@/services/db-init';
 
 import { ThemedText } from '@/components/themed-text';
@@ -846,10 +846,10 @@ export default function ProfileScreen() {
 
             <TouchableOpacity
               onPress={() =>
-                WebBrowser.openBrowserAsync(
-                  'https://ai.google.dev/gemini-api/docs/api-key'
-                )
-              }
+  Linking.openURL(
+    'https://ai.google.dev/gemini-api/docs/api-key'
+  )
+}
             >
               <ThemedText
                 style={styles.aiLink}
