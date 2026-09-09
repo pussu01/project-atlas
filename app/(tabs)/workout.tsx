@@ -34,6 +34,10 @@ import {
   hasGeminiApiKey,
 } from '@/services/gemini-key';
 
+import { generateLocalWorkout } from '@/services/local-workout-generator';
+import { findIllustrationFrames } from '@/services/exercise-illustration-lookup';
+import ExerciseIllustration from '@/components/exercise-illustration';
+
 import WorkoutSession, {
   WorkoutSessionSummary,
 } from '@/components/workout-session';
@@ -100,6 +104,37 @@ function parseRepeatedWorkout(
   }
 }
 
+type ProfileRow = {
+  goal: string;
+  equipment: string;
+  time_available: string;
+  age: number | null;
+  sex: string;
+  height_cm: number | null;
+  fitness_level: string;
+  exercises_to_avoid: string;
+};
+
+async function fetchProfileRow(): Promise<ProfileRow | null> {
+  const db = await getDatabase();
+
+  const profileRow = await db.getFirstAsync<ProfileRow>(
+    `SELECT
+      goal,
+      equipment,
+      time_available,
+      age,
+      sex,
+      height_cm,
+      fitness_level,
+      exercises_to_avoid
+    FROM profile
+    WHERE id = 1`
+  );
+
+  return profileRow || null;
+}
+
 export default function WorkoutScreen() {
   const params = useLocalSearchParams<{
     repeatWorkout?: string;
@@ -122,6 +157,9 @@ export default function WorkoutScreen() {
     useState(false);
 
   const [isRepeatedWorkout, setIsRepeatedWorkout] =
+    useState(false);
+
+  const [isOfflineWorkout, setIsOfflineWorkout] =
     useState(false);
 
   /* ================================================================
@@ -149,11 +187,12 @@ export default function WorkoutScreen() {
     setNeedsProfile(false);
     setNeedsGemini(false);
     setIsRepeatedWorkout(true);
+    setIsOfflineWorkout(false);
     setSessionActive(false);
   }, [params.repeatWorkout]);
 
   /* ================================================================
-     GENERATE NEW WORKOUT
+     GENERATE NEW WORKOUT (AI)
      ================================================================ */
 
   const handleGenerate = async () => {
@@ -164,6 +203,7 @@ export default function WorkoutScreen() {
     setNeedsProfile(false);
     setNeedsGemini(false);
     setIsRepeatedWorkout(false);
+    setIsOfflineWorkout(false);
 
     try {
       /*
@@ -172,31 +212,7 @@ export default function WorkoutScreen() {
        * ------------------------------------------------------------
        */
 
-      const db = await getDatabase();
-
-      const profileRow =
-        await db.getFirstAsync<{
-          goal: string;
-          equipment: string;
-          time_available: string;
-          age: number | null;
-          sex: string;
-          height_cm: number | null;
-          fitness_level: string;
-          exercises_to_avoid: string;
-        }>(
-          `SELECT
-            goal,
-            equipment,
-            time_available,
-            age,
-            sex,
-            height_cm,
-            fitness_level,
-            exercises_to_avoid
-          FROM profile
-          WHERE id = 1`
-        );
+      const profileRow = await fetchProfileRow();
 
       if (!profileRow || !profileRow.goal) {
         setNeedsProfile(true);
@@ -272,6 +288,7 @@ export default function WorkoutScreen() {
 
       setWorkout(result);
       setIsRepeatedWorkout(false);
+      setIsOfflineWorkout(false);
     } catch (err: any) {
       console.error(
         'Workout generation failed:',
@@ -282,6 +299,59 @@ export default function WorkoutScreen() {
         'Couldn’t generate workout',
         err?.message ||
           'Something went wrong while creating your workout. Please try again.'
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /* ================================================================
+     GENERATE NEW WORKOUT (OFFLINE, NO GEMINI KEY REQUIRED)
+     ================================================================ */
+
+  const handleGenerateOffline = async () => {
+    setLoading(true);
+
+    setWorkout(null);
+    setSaved(false);
+    setNeedsGemini(false);
+    setIsRepeatedWorkout(false);
+    setIsOfflineWorkout(false);
+
+    try {
+      const profileRow = await fetchProfileRow();
+
+      if (!profileRow || !profileRow.goal) {
+        setNeedsProfile(true);
+        return;
+      }
+
+      const recentWorkouts = await getRecentWorkouts(5);
+
+      const result = generateLocalWorkout({
+        goal: profileRow.goal,
+        equipment: profileRow.equipment
+          ? profileRow.equipment.split(',')
+          : [],
+        timeAvailable: profileRow.time_available || '30 min',
+        fitnessLevel: profileRow.fitness_level || '',
+        exercisesToAvoid: profileRow.exercises_to_avoid || '',
+        recentWorkouts,
+      });
+
+      setWorkout(result);
+      setIsRepeatedWorkout(false);
+      setIsOfflineWorkout(true);
+    } catch (err: any) {
+      console.error(
+        'Offline workout generation failed:',
+        err
+      );
+
+      Alert.alert(
+        'Couldn’t generate workout',
+        err?.message ||
+          'Something went wrong while creating your offline workout. Please try again.'
       );
     } finally {
       setLoading(false);
@@ -334,20 +404,20 @@ export default function WorkoutScreen() {
       };
 
       await db.runAsync(
-  `INSERT INTO workout_history
-    (date, workout_json, active_seconds, calories)
-   VALUES (?, ?, ?, ?)`,
-  [
-    today,
-    JSON.stringify(workoutToSave),
-    summary
-      ? Number(summary.activeSeconds) || 0
-      : 0,
-    summary
-      ? Number(summary.calories) || 0
-      : 0,
-  ]
-);
+        `INSERT INTO workout_history
+          (date, workout_json, active_seconds, calories)
+         VALUES (?, ?, ?, ?)`,
+        [
+          today,
+          JSON.stringify(workoutToSave),
+          summary
+            ? Number(summary.activeSeconds) || 0
+            : 0,
+          summary
+            ? Number(summary.calories) || 0
+            : 0,
+        ]
+      );
 
       setSaved(true);
 
@@ -439,6 +509,18 @@ export default function WorkoutScreen() {
         </ThemedView>
       )}
 
+      {isOfflineWorkout && workout && (
+        <ThemedView style={styles.repeatBanner}>
+          <ThemedText style={styles.repeatBannerTitle}>
+            📦 Offline Workout
+          </ThemedText>
+
+          <ThemedText style={styles.repeatBannerText}>
+            Generated from BheemAI's built-in exercise library. No AI, no internet required — connect your Gemini key in Profile for personalized AI coaching.
+          </ThemedText>
+        </ThemedView>
+      )}
+
       {needsProfile && (
         <ThemedView style={styles.setupCard}>
           <ThemedText
@@ -492,6 +574,20 @@ export default function WorkoutScreen() {
               Set Up AI Coach
             </ThemedText>
           </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.offlineButton}
+            onPress={handleGenerateOffline}
+            disabled={loading}
+          >
+            <ThemedText style={styles.offlineButtonText}>
+              Continue with Offline Workouts
+            </ThemedText>
+          </TouchableOpacity>
+
+          <ThemedText style={styles.offlineHint}>
+            Uses BheemAI's built-in exercise library instead of AI. Simpler, but works entirely offline with no key required.
+          </ThemedText>
         </ThemedView>
       )}
 
@@ -564,58 +660,68 @@ export default function WorkoutScreen() {
           </ThemedText>
 
           {workout.exercises.map(
-            (ex, i) => (
-              <ThemedView
-                key={i}
-                style={styles.exerciseCard}
-              >
-                <ThemedText type="defaultSemiBold">
-                  {i + 1}. {ex.name}
-                </ThemedText>
+            (ex, i) => {
+              const frames = findIllustrationFrames(ex.name);
 
-                <ThemedText
-                  style={styles.exerciseDetail}
+              return (
+                <ThemedView
+                  key={i}
+                  style={styles.exerciseCard}
                 >
-                  {ex.sets} sets × {ex.reps} reps
-                </ThemedText>
+                  <View style={styles.exerciseTitleRow}>
+                    <ThemedText type="defaultSemiBold" style={{ flex: 1 }}>
+                      {i + 1}. {ex.name}
+                    </ThemedText>
 
-                <ThemedText
-                  style={styles.exerciseFocus}
-                >
-                  Focus: {ex.focus}
-                </ThemedText>
+                    {frames && (
+                      <ExerciseIllustration frameXml={frames} size={56} />
+                    )}
+                  </View>
 
-                <ThemedText
-                  style={styles.exerciseDescription}
-                >
-                  {ex.description}
-                </ThemedText>
-
-                <TouchableOpacity
-                  style={styles.demoButton}
-                  onPress={() => {
-                    const url =
-                      'https://www.youtube.com/results?search_query=' +
-                      encodeURIComponent(
-                        `${ex.name} exercise proper form`
-                      );
-
-                    Linking.openURL(url).catch(() => {
-                      Alert.alert(
-                        'Unable to open YouTube',
-                        'Please try again.'
-                      );
-                    });
-                  }}
-                >
                   <ThemedText
-                    style={styles.demoButtonText}
+                    style={styles.exerciseDetail}
                   >
-                    ▶ Watch Demo
+                    {ex.sets} sets × {ex.reps} reps
                   </ThemedText>
-                </TouchableOpacity>
-              </ThemedView>
-            )
+
+                  <ThemedText
+                    style={styles.exerciseFocus}
+                  >
+                    Focus: {ex.focus}
+                  </ThemedText>
+
+                  <ThemedText
+                    style={styles.exerciseDescription}
+                  >
+                    {ex.description}
+                  </ThemedText>
+
+                  <TouchableOpacity
+                    style={styles.demoButton}
+                    onPress={() => {
+                      const url =
+                        'https://www.youtube.com/results?search_query=' +
+                        encodeURIComponent(
+                          `${ex.name} exercise proper form`
+                        );
+
+                      Linking.openURL(url).catch(() => {
+                        Alert.alert(
+                          'Unable to open YouTube',
+                          'Please try again.'
+                        );
+                      });
+                    }}
+                  >
+                    <ThemedText
+                      style={styles.demoButtonText}
+                    >
+                      ▶ Watch Demo
+                    </ThemedText>
+                  </TouchableOpacity>
+                </ThemedView>
+              );
+            }
           )}
 
           {workout.cooldown &&
@@ -782,6 +888,31 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
 
+  offlineButton: {
+    borderWidth: 1,
+    borderColor: '#F28C18',
+    backgroundColor: 'transparent',
+    borderRadius: 12,
+    minHeight: 48,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+  },
+
+  offlineButtonText: {
+    color: '#F28C18',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+
+  offlineHint: {
+    fontSize: 12,
+    lineHeight: 17,
+    opacity: 0.55,
+    marginTop: 2,
+  },
+
   startSessionButton: {
     backgroundColor: '#F28C18',
     borderRadius: 14,
@@ -807,6 +938,12 @@ const styles = StyleSheet.create({
     borderColor: '#292929',
     backgroundColor: '#151515',
     gap: 6,
+  },
+
+  exerciseTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
 
   exerciseDetail: {

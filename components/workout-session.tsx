@@ -12,6 +12,8 @@ import * as Haptics from 'expo-haptics';
 import { Audio } from 'expo-av';
 import { ThemedText } from '@/components/themed-text';
 import { WorkoutPlan } from '@/services/gemini';
+import { findIllustrationFrames } from '@/services/exercise-illustration-lookup';
+import ExerciseIllustration from '@/components/exercise-illustration';
 
 const WHISTLE_SOUND = require('@/assets/sounds/whistle.mp3');
 
@@ -105,6 +107,9 @@ export default function WorkoutSession({
     exercises[currentExerciseIndex];
 
   const totalExercises = exercises.length;
+
+  const currentExerciseIllustration =
+    findIllustrationFrames(currentExercise?.name || '');
 
   useEffect(() => {
     if (phase !== 'exercise') {
@@ -763,6 +768,7 @@ export default function WorkoutSession({
    */
   if (phase === 'warmup') {
     const step = warmup[warmupIndex];
+    const warmupIllustration = findIllustrationFrames(step?.name || '');
 
     return (
       <SafeAreaView style={styles.container}>
@@ -821,6 +827,13 @@ export default function WorkoutSession({
             >
               {step?.name || 'Warm-up'}
             </ThemedText>
+
+            {warmupIllustration && (
+              <ExerciseIllustration
+                frameXml={warmupIllustration}
+                size={110}
+              />
+            )}
 
             <View style={styles.timerCircle}>
               <ThemedText style={styles.timerText}>
@@ -966,6 +979,7 @@ export default function WorkoutSession({
    */
   if (phase === 'cooldown') {
     const step = cooldown[cooldownIndex];
+    const cooldownIllustration = findIllustrationFrames(step?.name || '');
 
     return (
       <SafeAreaView style={styles.container}>
@@ -1024,6 +1038,13 @@ export default function WorkoutSession({
             >
               {step?.name || 'Cool-down'}
             </ThemedText>
+
+            {cooldownIllustration && (
+              <ExerciseIllustration
+                frameXml={cooldownIllustration}
+                size={110}
+              />
+            )}
 
             <View style={styles.timerCircle}>
               <ThemedText style={styles.timerText}>
@@ -1128,6 +1149,13 @@ export default function WorkoutSession({
           <ThemedText style={styles.repsText}>
             {currentExercise?.reps ?? 0} reps
           </ThemedText>
+
+          {currentExerciseIllustration && (
+            <ExerciseIllustration
+              frameXml={currentExerciseIllustration}
+              size={140}
+            />
+          )}
 
           <View style={styles.exerciseGuideCard}>
 
